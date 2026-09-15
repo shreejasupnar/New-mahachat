@@ -1,0 +1,160 @@
+import { PremiumNameEffect } from '../types';
+
+export const PREMIUM_NAME_EFFECTS: PremiumNameEffect[] = [
+  {
+    id: 'name_royal_gold',
+    nameMr: 'राजेशाही सुवर्ण (Royal Gold)',
+    nameEn: 'Royal Gold',
+    category: 'nameEffects',
+    culturalTheme: 'शाही वैभव',
+    previewIcon: '👑',
+    gradientStyle: 'from-amber-400 via-yellow-300 to-amber-500 bg-clip-text text-transparent font-black',
+    textShadow: 'drop-shadow-[0_1px_2px_rgba(202,138,4,0.6)]',
+    badgeSymbol: '👑',
+    premiumRequired: true
+  },
+  {
+    id: 'name_sahyadri_emerald',
+    nameMr: 'सह्याद्री हिरवळ (Sahyadri Emerald)',
+    nameEn: 'Sahyadri Emerald',
+    category: 'nameEffects',
+    culturalTheme: 'सह्याद्री निसर्ग',
+    previewIcon: '⛰️',
+    gradientStyle: 'from-emerald-400 via-teal-300 to-green-500 bg-clip-text text-transparent font-black',
+    textShadow: 'drop-shadow-[0_1px_2px_rgba(5,150,105,0.6)]',
+    badgeSymbol: '⛰️',
+    premiumRequired: true
+  },
+  {
+    id: 'name_paithani_zari',
+    nameMr: 'पैठणी सुवर्णजरी (Paithani Zari)',
+    nameEn: 'Paithani Zari',
+    category: 'nameEffects',
+    culturalTheme: 'पैठणी कला',
+    previewIcon: '🦚',
+    gradientStyle: 'from-rose-400 via-amber-300 to-fuchsia-500 bg-clip-text text-transparent font-black',
+    textShadow: 'drop-shadow-[0_1px_2px_rgba(190,24,93,0.6)]',
+    badgeSymbol: '🦚',
+    premiumRequired: true
+  },
+  {
+    id: 'name_warli_ochre',
+    nameMr: 'वारली लालमाती (Warli Ochre)',
+    nameEn: 'Warli Ochre',
+    category: 'nameEffects',
+    culturalTheme: 'वारली संस्कृती',
+    previewIcon: '🎨',
+    gradientStyle: 'from-amber-300 via-stone-200 to-orange-400 bg-clip-text text-transparent font-black',
+    textShadow: 'drop-shadow-[0_1px_2px_rgba(120,53,15,0.6)]',
+    badgeSymbol: '🌾',
+    premiumRequired: true
+  },
+  {
+    id: 'name_fort_stone',
+    nameMr: 'किल्ले रायगड बुरूज (Fort Stone)',
+    nameEn: 'Fort Stone',
+    category: 'nameEffects',
+    culturalTheme: 'गडकोट शौर्य',
+    previewIcon: '🏰',
+    gradientStyle: 'from-stone-300 via-amber-200 to-stone-400 bg-clip-text text-transparent font-black',
+    textShadow: 'drop-shadow-[0_1px_2px_rgba(28,25,23,0.8)]',
+    badgeSymbol: '🏰',
+    premiumRequired: true
+  },
+  {
+    id: 'name_festival_sparkle',
+    nameMr: 'उत्सव झळाळी (Festival Sparkle)',
+    nameEn: 'Festival Sparkle',
+    category: 'nameEffects',
+    culturalTheme: 'सण व उत्सव',
+    previewIcon: '✨',
+    gradientStyle: 'from-pink-400 via-purple-300 to-rose-400 bg-clip-text text-transparent font-black',
+    textShadow: 'drop-shadow-[0_1px_2px_rgba(219,39,119,0.6)]',
+    badgeSymbol: '✨',
+    premiumRequired: true
+  },
+  {
+    id: 'name_maha_pride_saffron',
+    nameMr: 'महाराष्ट्र स्वाभिमान भगवा (Maharashtra Pride)',
+    nameEn: 'Maharashtra Pride Saffron',
+    category: 'nameEffects',
+    culturalTheme: 'महाराष्ट्र भगवा',
+    previewIcon: '🚩',
+    gradientStyle: 'from-orange-500 via-amber-400 to-red-500 bg-clip-text text-transparent font-black',
+    textShadow: 'drop-shadow-[0_1px_2px_rgba(234,88,12,0.6)]',
+    badgeSymbol: '🚩',
+    premiumRequired: true
+  },
+  {
+    id: 'name_traditional_samai',
+    nameMr: 'समई सुवर्ण ज्योत (Traditional Samai)',
+    nameEn: 'Traditional Samai Flame',
+    category: 'nameEffects',
+    culturalTheme: 'दीप ज्योत',
+    previewIcon: '🪔',
+    gradientStyle: 'from-yellow-300 via-amber-400 to-orange-400 bg-clip-text text-transparent font-black',
+    textShadow: 'drop-shadow-[0_1px_2px_rgba(202,138,4,0.6)]',
+    badgeSymbol: '🪔',
+    premiumRequired: true
+  },
+  {
+    id: 'name_minimal_premium',
+    nameMr: 'सोबर प्रीमियम व्हाईट (Minimal Platinum)',
+    nameEn: 'Minimal Platinum',
+    category: 'nameEffects',
+    culturalTheme: 'आधुनिक अभिजात',
+    previewIcon: '💎',
+    gradientStyle: 'from-slate-100 via-blue-100 to-slate-200 bg-clip-text text-transparent font-bold',
+    textShadow: 'drop-shadow-[0_1px_2px_rgba(30,41,59,0.7)]',
+    badgeSymbol: '💎',
+    premiumRequired: true
+  },
+  {
+    id: 'name_luxury_sovereign',
+    nameMr: 'महाचॅट सम्राट डायमंड (Luxury Sovereign)',
+    nameEn: 'Luxury Sovereign Diamond',
+    category: 'nameEffects',
+    culturalTheme: 'महाचॅट सम्राट',
+    previewIcon: '⭐',
+    gradientStyle: 'from-yellow-200 via-amber-300 to-yellow-100 bg-clip-text text-transparent font-black',
+    textShadow: 'drop-shadow-[0_0_4px_rgba(250,204,21,0.8)]',
+    badgeSymbol: '⭐',
+    premiumRequired: true
+  },
+  {
+    id: 'name_kolhapur_akhada',
+    nameMr: 'कोल्हापुरी तांबडा ठसका (Kolhapur Akhada Red)',
+    nameEn: 'Kolhapur Akhada Red',
+    category: 'nameEffects',
+    culturalTheme: 'कोल्हापूर लाल माती',
+    previewIcon: '🔥',
+    gradientStyle: 'from-red-500 via-rose-400 to-orange-500 bg-clip-text text-transparent font-black',
+    textShadow: 'drop-shadow-[0_1px_2px_rgba(220,38,38,0.7)]',
+    badgeSymbol: '🔥',
+    premiumRequired: true
+  },
+  {
+    id: 'name_konkan_sea_breeze',
+    nameMr: 'कोकण सागरी नील (Konkan Sea Blue)',
+    nameEn: 'Konkan Sea Blue',
+    category: 'nameEffects',
+    culturalTheme: 'कोकण समुद्र',
+    previewIcon: '🌊',
+    gradientStyle: 'from-cyan-400 via-sky-300 to-blue-500 bg-clip-text text-transparent font-black',
+    textShadow: 'drop-shadow-[0_1px_2px_rgba(14,165,233,0.6)]',
+    badgeSymbol: '🌊',
+    premiumRequired: true
+  },
+  {
+    id: 'name_vitthal_bhakti',
+    nameMr: 'पंढरी विठू माऊली (Pandhari Vitthal)',
+    nameEn: 'Pandhari Vitthal Bhakti',
+    category: 'nameEffects',
+    culturalTheme: 'वारकरी भक्ती',
+    previewIcon: '🙏',
+    gradientStyle: 'from-amber-400 via-orange-300 to-yellow-500 bg-clip-text text-transparent font-black',
+    textShadow: 'drop-shadow-[0_1px_2px_rgba(217,119,6,0.6)]',
+    badgeSymbol: '🙏',
+    premiumRequired: true
+  }
+];

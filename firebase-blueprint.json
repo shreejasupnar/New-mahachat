@@ -1,0 +1,85 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with authentic Maharashtra district and premium cosmetics",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "displayName": { "type": "string", "maxLength": 60 },
+        "photoURL": { "type": "string", "maxLength": 1000 },
+        "district": { "type": "string", "maxLength": 50 },
+        "bio": { "type": "string", "maxLength": 300 },
+        "isOnline": { "type": "boolean" },
+        "subscriptionStatus": { "type": "string", "enum": ["none", "active", "expired"] },
+        "subscriptionPlan": { "type": "string", "enum": ["1_month", "3_months", "6_months"] },
+        "subscriptionStart": { "type": "string" },
+        "subscriptionEnd": { "type": "string" },
+        "vipLevel": { "type": "number" },
+        "vipExp": { "type": "number" },
+        "coins": { "type": "number" },
+        "totalRecharged": { "type": "number" },
+        "equippedBubble": { "type": "string", "maxLength": 80 },
+        "equippedFrame": { "type": "string", "maxLength": 80 },
+        "equippedSeatFrame": { "type": "string", "maxLength": 80 },
+        "equippedBadge": { "type": "string", "maxLength": 80 },
+        "equippedEntryEffect": { "type": "string", "maxLength": 80 },
+        "equippedProfileEffect": { "type": "string", "maxLength": 80 },
+        "equippedNameEffect": { "type": "string", "maxLength": 80 }
+      },
+      "required": ["uid", "displayName", "district"]
+    },
+    "PremiumSubscription": {
+      "title": "PremiumSubscription",
+      "description": "Subscription transaction record after real payment verification",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "planId": { "type": "string", "enum": ["1_month", "3_months", "6_months"] },
+        "amount": { "type": "number" },
+        "paymentReference": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["verified", "pending", "failed"] },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "planId", "amount", "status"]
+    },
+    "RoomGift": {
+      "title": "RoomGift",
+      "description": "Real gift sent between authentic users in a chat or voice room",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "districtId": { "type": "string", "maxLength": 50 },
+        "giftId": { "type": "string", "maxLength": 80 },
+        "giftName": { "type": "string", "maxLength": 80 },
+        "giftIcon": { "type": "string", "maxLength": 80 },
+        "senderId": { "type": "string", "maxLength": 128 },
+        "senderName": { "type": "string", "maxLength": 80 },
+        "recipientId": { "type": "string", "maxLength": 128 },
+        "recipientName": { "type": "string", "maxLength": 80 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["districtId", "giftId", "senderId", "recipientId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles including premium subscription states"
+    },
+    "/subscriptions/{subId}": {
+      "schema": "PremiumSubscription",
+      "description": "Verified subscription purchase records"
+    },
+    "/districts/{districtId}/gifts/{giftId}": {
+      "schema": "RoomGift",
+      "description": "Real-time gifts sent between real participants"
+    },
+    "/districts/{districtId}/messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Text messages sent within a district"
+    }
+  }
+}

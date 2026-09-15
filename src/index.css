@@ -1,0 +1,159 @@
+@import "tailwindcss";
+
+/* -------------------------------------------------------------
+   MahaChat Premium Glossy & Smooth UI System (GPU-accelerated)
+   ------------------------------------------------------------- */
+
+:root {
+  --color-brand-blue: #1d4ed8;
+  --color-brand-saffron: #f59e0b;
+  --color-brand-indigo: #4338ca;
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom smooth scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.6);
+}
+
+/* Glossy highlight line reflection on top edge of surfaces */
+.glossy-top-edge {
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.45);
+}
+
+.glossy-top-edge-subtle {
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.25);
+}
+
+.glossy-dark-top-edge {
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.15), 0 8px 24px -4px rgba(0, 0, 0, 0.4);
+}
+
+/* Glossy Button sheen & active state */
+.btn-glossy {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1), filter 0.15s ease;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.35), 0 4px 12px -2px rgba(37, 99, 235, 0.25);
+}
+.btn-glossy:hover {
+  filter: brightness(1.03);
+}
+.btn-glossy:active {
+  transform: scale(0.97);
+  filter: brightness(0.96);
+}
+
+/* Premium Gold Glossy Button */
+.btn-glossy-amber {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1), filter 0.15s ease;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.45), 0 4px 14px -2px rgba(245, 158, 11, 0.35);
+}
+.btn-glossy-amber:hover {
+  filter: brightness(1.03);
+}
+.btn-glossy-amber:active {
+  transform: scale(0.97);
+  filter: brightness(0.95);
+}
+
+/* Premium Glassmorphic card surface */
+.card-glossy {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.9), 0 4px 20px -3px rgba(15, 23, 42, 0.05), 0 2px 6px -2px rgba(15, 23, 42, 0.03);
+  transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.18s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.18s ease;
+}
+.card-glossy:hover {
+  border-color: rgba(147, 197, 253, 0.8);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.95), 0 8px 25px -4px rgba(37, 99, 235, 0.08), 0 4px 10px -2px rgba(15, 23, 42, 0.04);
+}
+
+/* Dark Mode Glossy Card */
+.card-glossy-dark {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.12), 0 10px 30px -5px rgba(0, 0, 0, 0.4);
+}
+
+/* Shimmer animation for skeleton/loading and gold highlights */
+@keyframes shimmerWave {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.animate-shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0,
+    rgba(255, 255, 255, 0.25) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: shimmerWave 2s infinite;
+}
+
+/* Smooth Pulse for Live status rings */
+@keyframes speakingPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.6), 0 0 15px rgba(6, 182, 212, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(6, 182, 212, 0), 0 0 25px rgba(6, 182, 212, 0.7);
+  }
+}
+
+.ring-speaking-pulse {
+  animation: speakingPulse 1.8s infinite ease-in-out;
+}
+
+/* Micro-interaction tap compression */
+.interactive-tap {
+  transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.12s ease;
+}
+.interactive-tap:active {
+  transform: scale(0.96);
+  opacity: 0.92;
+}

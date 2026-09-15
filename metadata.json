@@ -1,0 +1,6 @@
+{
+  "name": "MahaChat",
+  "description": "Maharashtra-focused social chat application connecting real users across all 36 Maharashtra districts.",
+  "requestFramePermissions": ["microphone", "camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

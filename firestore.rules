@@ -1,0 +1,94 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // User profiles
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if false;
+    }
+
+    // District chat messages
+    match /districts/{districtId}/messages/{messageId} {
+      allow read: if true;
+      allow create: if request.auth != null && request.resource.data.senderId == request.auth.uid;
+      allow update: if request.auth != null && (resource.data.senderId == request.auth.uid || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reported', 'reportCount']));
+      allow delete: if request.auth != null && resource.data.senderId == request.auth.uid;
+    }
+
+    // Voice room participants
+    match /districts/{districtId}/voiceRooms/{roomId}/participants/{userId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Voice room in-room rolling messages & events
+    match /districts/{districtId}/voiceRooms/{roomId}/messages/{messageId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow delete: if request.auth != null;
+    }
+
+    // Voice room speaker requests (hands raised)
+    match /districts/{districtId}/voiceRooms/{roomId}/speakerRequests/{requestId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Voice room bans (moderation)
+    match /districts/{districtId}/voiceRooms/{roomId}/bans/{targetUid} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Direct chats between two users
+    match /directChats/{chatId} {
+      allow read, write: if request.auth != null;
+      
+      match /messages/{messageId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null && request.resource.data.senderId == request.auth.uid;
+      }
+    }
+
+    // User reports for moderation
+    match /reports/{reportId} {
+      allow create: if request.auth != null;
+      allow read: if request.auth != null;
+      allow update, delete: if false;
+    }
+
+    // Real-time gifts sent between real participants in a district room
+    match /districts/{districtId}/gifts/{giftId} {
+      allow read: if true;
+      allow create: if request.auth != null && request.resource.data.senderId == request.auth.uid;
+      allow delete: if request.auth != null && resource.data.senderId == request.auth.uid;
+    }
+
+    // Room events like entry effects
+    match /districts/{districtId}/roomEvents/{eventId} {
+      allow read: if true;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+
+    // Verified subscription transaction records
+    match /subscriptions/{subId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // VIP Recharge transactions
+    match /recharges/{rechargeId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Admin asset management
+    match /adminAssets/{assetId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}
