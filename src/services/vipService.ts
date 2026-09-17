@@ -21,12 +21,14 @@ export interface RechargeResult {
 export async function processUserRecharge(
   userId: string,
   pkg: RechargePackage,
-  paymentMethod: string = 'RAZORPAY',
+  paymentMethod: string = 'GOOGLE_PAY',
   paymentDetails?: {
     orderId?: string;
     paymentId?: string;
     signature?: string;
     utrNumber?: string;
+    googlePayOrderId?: string;
+    googlePayTransactionId?: string;
   }
 ): Promise<RechargeResult> {
   if (!userId) {
@@ -102,9 +104,9 @@ export async function processUserRecharge(
       bonusCoinsGranted: pkg.bonusCoins,
       expGranted: pkg.vipExp,
       paymentMethod,
-      transactionRef: cleanUtr || paymentDetails?.paymentId || `TXN_${Date.now()}`,
-      razorpayOrderId: paymentDetails?.orderId,
-      razorpayPaymentId: paymentDetails?.paymentId,
+      transactionRef: cleanUtr || paymentDetails?.googlePayTransactionId || paymentDetails?.paymentId || `TXN_${Date.now()}`,
+      googlePayOrderId: paymentDetails?.googlePayOrderId || paymentDetails?.orderId,
+      googlePayTransactionId: paymentDetails?.googlePayTransactionId || paymentDetails?.paymentId,
       createdAt: new Date().toISOString(),
       status: 'completed'
     };
@@ -127,7 +129,7 @@ export async function processUserRecharge(
 
 /**
  * Notice: All free sources of coins have been permanently removed.
- * Coins can only be acquired via Razorpay payment gateway recharge.
+ * Coins can only be acquired via Google Pay / UPI merchant recharge.
  */
 export async function claimDailyVipCoins(
   _userId: string,
@@ -136,6 +138,6 @@ export async function claimDailyVipCoins(
   return {
     success: false,
     coinsAwarded: 0,
-    message: 'मोफत नाणी मिळवण्याचे पर्याय बंद करण्यात आले आहेत. नाणी फक्त Razorpay रिचार्जद्वारे विकत घेता येतील.'
+    message: 'मोफत नाणी मिळवण्याचे पर्याय बंद करण्यात आले आहेत. नाणी फक्त Google Pay / UPI रिचार्जद्वारे विकत घेता येतील.'
   };
 }

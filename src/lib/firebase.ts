@@ -416,6 +416,10 @@ export async function joinVoiceRoom(
   districtId: string,
   participant: VoiceParticipant
 ) {
+  if (!districtId || !participant || !participant.uid) {
+    console.warn('[joinVoiceRoom] Missing districtId or participant.uid');
+    return;
+  }
   const partRef = doc(db, 'districts', districtId, 'voiceRooms', 'active', 'participants', participant.uid);
   const data = sanitizeForFirestore({
     uid: participant.uid,
@@ -438,6 +442,7 @@ export async function joinVoiceRoom(
 // Voice Room: Leave voice room
 export async function leaveVoiceRoom(districtId: string, uid: string) {
   try {
+    if (!districtId || !uid) return;
     const partRef = doc(db, 'districts', districtId, 'voiceRooms', 'active', 'participants', uid);
     await deleteDoc(partRef);
   } catch (e) {
@@ -452,6 +457,7 @@ export async function updateVoiceState(
   updates: Partial<Pick<VoiceParticipant, 'isSpeaking' | 'isMuted' | 'role' | 'seatIndex'>>
 ) {
   try {
+    if (!districtId || !uid) return;
     const partRef = doc(db, 'districts', districtId, 'voiceRooms', 'active', 'participants', uid);
     const cleanUpdates = sanitizeForFirestore(updates);
     if (Object.keys(cleanUpdates).length > 0) {
@@ -470,6 +476,10 @@ export async function takeVoiceSeat(
   profile?: UserProfile | null
 ) {
   try {
+    if (!districtId || !uid) {
+      console.warn('[takeVoiceSeat] Missing districtId or uid');
+      return;
+    }
     const partRef = doc(db, 'districts', districtId, 'voiceRooms', 'active', 'participants', uid);
     const updates: Record<string, any> = {
       uid,
@@ -483,8 +493,9 @@ export async function takeVoiceSeat(
       updates.displayName = profile.displayName || 'MahaChat User';
       updates.photoURL = profile.photoURL || '';
       updates.isPremium = profile.subscriptionStatus === 'active' && !!profile.subscriptionEnd && new Date(profile.subscriptionEnd).getTime() > Date.now();
-      updates.equippedSeatFrame = profile.equippedSeatFrame || null;
-      updates.equippedBadge = profile.equippedBadge || null;
+      updates.vipLevel = profile.vipLevel || null;
+      updates.equippedSeatFrame = profile.equippedSeatFrame || (profile.vipLevel ? `vip_seat_level_${profile.vipLevel}` : null);
+      updates.equippedBadge = profile.equippedBadge || (profile.vipLevel ? `VIP ${profile.vipLevel}` : null);
       updates.equippedNameEffect = profile.equippedNameEffect || null;
       updates.joinedAt = serverTimestamp();
     }
@@ -501,6 +512,7 @@ export async function leaveVoiceSeat(
   uid: string
 ) {
   try {
+    if (!districtId || !uid) return;
     const partRef = doc(db, 'districts', districtId, 'voiceRooms', 'active', 'participants', uid);
     await setDoc(partRef, {
       seatIndex: null,
@@ -518,6 +530,10 @@ export function subscribeToVoiceParticipants(
   districtId: string,
   callback: (participants: VoiceParticipant[]) => void
 ) {
+  if (!districtId) {
+    callback([]);
+    return () => {};
+  }
   const partsRef = collection(db, 'districts', districtId, 'voiceRooms', 'active', 'participants');
   return onSnapshot(partsRef, (snapshot) => {
     const list: VoiceParticipant[] = [];
@@ -525,7 +541,8 @@ export function subscribeToVoiceParticipants(
       const data = docSnap.data();
       list.push({
         ...data,
-        uid: data.uid || docSnap.id
+        uid: data.uid || docSnap.id,
+        vipLevel: Number(data.vipLevel) || 0
       } as VoiceParticipant);
     });
     callback(list);

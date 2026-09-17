@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Crown, Sparkles } from 'lucide-react';
 import { getVipTier } from '../../data/vipData';
 import { VipBadge } from './VipBadge';
@@ -9,6 +9,7 @@ interface VipEntryNoticeBannerProps {
   userPhoto?: string;
   onDismiss?: () => void;
   durationMs?: number;
+  isInline?: boolean;
 }
 
 export const VipEntryNoticeBanner: React.FC<VipEntryNoticeBannerProps> = ({
@@ -16,26 +17,58 @@ export const VipEntryNoticeBanner: React.FC<VipEntryNoticeBannerProps> = ({
   userName,
   userPhoto,
   onDismiss,
-  durationMs = 4500
+  durationMs = 2700,
+  isInline = false
 }) => {
   const [visible, setVisible] = useState(true);
+  const [isExiting, setIsExiting] = useState(false);
+  const onDismissRef = useRef(onDismiss);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setVisible(false);
-      if (onDismiss) onDismiss();
-    }, durationMs);
+    onDismissRef.current = onDismiss;
+  });
 
-    return () => clearTimeout(timer);
-  }, [durationMs, onDismiss]);
+  useEffect(() => {
+    setVisible(true);
+    setIsExiting(false);
+
+    // Strictly enforce 2.5s to 3.0s duration (default 2700ms)
+    const effectiveDuration = Math.min(Math.max(durationMs, 2500), 3000);
+
+    // Fade out / slide up 350ms before dismissal (at ~2.35s)
+    const exitTimer = setTimeout(() => {
+      setIsExiting(true);
+    }, Math.max(200, effectiveDuration - 350));
+
+    // Fully dismiss and notify parent
+    const dismissTimer = setTimeout(() => {
+      setVisible(false);
+      if (onDismissRef.current) {
+        onDismissRef.current();
+      }
+    }, effectiveDuration);
+
+    return () => {
+      clearTimeout(exitTimer);
+      clearTimeout(dismissTimer);
+    };
+  }, [durationMs, vipLevel]);
 
   if (!visible || !vipLevel || vipLevel <= 0) return null;
 
   const tier = getVipTier(vipLevel);
   if (!tier) return null;
 
+  const containerPositionClasses = isInline
+    ? 'relative w-full select-none flex justify-center'
+    : 'absolute top-16 left-3 right-3 z-40 pointer-events-none select-none flex justify-center';
+
   return (
-    <div className="absolute top-16 left-3 right-3 z-40 pointer-events-none select-none flex justify-center animate-in slide-in-from-top-6 duration-300">
+    <div 
+      className={`${containerPositionClasses} transition-all duration-300 ${
+        isExiting ? 'opacity-0 -translate-y-4 scale-95 pointer-events-none' : 'opacity-100 translate-y-0 scale-100 animate-in slide-in-from-top-6 duration-300'
+      }`}
+    >
       <div 
         className="relative max-w-sm w-full rounded-2xl p-2.5 shadow-2xl border flex items-center gap-3 backdrop-blur-md overflow-hidden"
         style={{

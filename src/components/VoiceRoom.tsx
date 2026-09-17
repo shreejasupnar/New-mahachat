@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { District } from '../data/districts';
 import { 
   UserProfile, 
@@ -62,6 +62,38 @@ import {
   ROOM_THEMES_REGISTRY,
   getThemeById
 } from '../effects';
+import { VipEntryNoticeBanner } from './vip/VipEntryNoticeBanner';
+import { getVipTier } from '../data/vipData';
+
+function playVipFanfareSound(level: number) {
+  try {
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+    const baseFreqs = level >= 7 
+      ? [523.25, 659.25, 783.99, 1046.5] // Imperial royal fanfare
+      : level >= 4 
+      ? [440.00, 554.37, 659.25] // A major fanfare
+      : [523.25, 659.25]; // Warm duo chime
+
+    baseFreqs.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = level >= 6 ? 'triangle' : 'sine';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.12);
+      gain.gain.setValueAtTime(0, now + idx * 0.12);
+      gain.gain.linearRampToValueAtTime(0.18, now + idx * 0.12 + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.12 + 0.6);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + idx * 0.12);
+      osc.stop(now + idx * 0.12 + 0.7);
+    });
+  } catch {
+    // Non-blocking audio play
+  }
+}
 
 interface VoiceRoomProps {
   district: District;
@@ -112,6 +144,43 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
   
   // In-room live rolling messages from real users only
   const [streamMessages, setStreamMessages] = useState<VoiceRoomStreamMessage[]>([]);
+
+  // Active VIP Entry celebration notice banner
+  const [activeVipEntry, setActiveVipEntry] = useState<{
+    vipLevel: number;
+    userName: string;
+    userPhoto?: string;
+    key?: string;
+  } | null>(null);
+  const lastProcessedEntryKeyRef = useRef<string>('');
+  const vipEntryTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const triggerVipEntry = useCallback((entry: {
+    vipLevel: number;
+    userName: string;
+    userPhoto?: string;
+    key?: string;
+  }) => {
+    if (vipEntryTimerRef.current) {
+      clearTimeout(vipEntryTimerRef.current);
+    }
+    setActiveVipEntry(entry);
+    playVipFanfareSound(entry.vipLevel);
+
+    // Guaranteed dismiss from VoiceRoom state after 2.7s
+    vipEntryTimerRef.current = setTimeout(() => {
+      setActiveVipEntry(null);
+      vipEntryTimerRef.current = null;
+    }, 2700);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (vipEntryTimerRef.current) {
+        clearTimeout(vipEntryTimerRef.current);
+      }
+    };
+  }, []);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -231,6 +300,32 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
     const unsubMessages = subscribeToVoiceRoomLiveMessages(district.id, (msgs) => {
       if (msgs && msgs.length > 0) {
         setStreamMessages(msgs);
+
+        // Check latest message for VIP entrance event
+        const latest = msgs[msgs.length - 1];
+        if (latest && latest.type === 'entry' && latest.level && latest.level >= 1) {
+          const entryKey = `${latest.id || ''}_${latest.senderId}_${latest.level}`;
+          if (entryKey !== lastProcessedEntryKeyRef.current) {
+            lastProcessedEntryKeyRef.current = entryKey;
+            
+            // Only trigger if message is fresh (within last 15s) to avoid playing stale banners on load
+            const msgTime = latest.createdAt
+              ? (typeof latest.createdAt.toMillis === 'function'
+                ? latest.createdAt.toMillis()
+                : new Date(latest.createdAt).getTime())
+              : Date.now();
+            const isFresh = Math.abs(Date.now() - msgTime) < 15000;
+
+            if (isFresh) {
+              triggerVipEntry({
+                vipLevel: latest.level,
+                userName: latest.senderName,
+                userPhoto: latest.senderPhoto,
+                key: entryKey
+              });
+            }
+          }
+        }
       }
     });
     return () => unsubMessages();
@@ -393,6 +488,27 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
           joinedAt: null
         });
         setHasJoined(true);
+
+        // Broadcast and display VIP entry announcement & fanfare if user is VIP 1+
+        if (profile.vipLevel && profile.vipLevel >= 1) {
+          const tier = getVipTier(profile.vipLevel);
+          const entryText = tier ? tier.entryBannerTextMr : `VIP ${profile.vipLevel} यांचे कट्ट्यावर आगमन! 👑`;
+          sendVoiceRoomLiveMessage(district.id, {
+            type: 'entry',
+            senderId: profile.uid,
+            senderName: profile.displayName || 'VIP सदस्य',
+            senderPhoto: profile.photoURL || '',
+            text: entryText,
+            level: profile.vipLevel
+          }).catch(console.warn);
+
+          triggerVipEntry({
+            vipLevel: profile.vipLevel,
+            userName: profile.displayName || 'VIP सदस्य',
+            userPhoto: profile.photoURL || '',
+            key: `join_${profile.uid}_${Date.now()}`
+          });
+        }
       } catch (err) {
         console.error('Error joining voice room:', err);
       }
@@ -622,12 +738,16 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
     }
   };
 
-  // Moderator Mute All Speakers
+  // Moderator Mute All Speakers (with VIP 4+ protection)
   const handleMuteAll = async () => {
     try {
       const seated = participants.filter(p => p.seatIndex !== null && p.seatIndex !== undefined);
       for (const p of seated) {
         if (p.uid !== currentUserProfile?.uid) {
+          // VIP 4+ has Anti-Mute Protection unless current user is System Admin
+          if ((p.vipLevel || 0) >= 4 && !currentUserProfile?.isAdmin) {
+            continue;
+          }
           await voiceRoomService.muteSpeaker(
             district.id,
             p.uid,
@@ -637,14 +757,21 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
           );
         }
       }
-      alert('🔇 सर्व स्पीकर्सना म्यूट करण्यात आले आहे.');
+      alert('🔇 सर्व स्पीकर्सना म्यूट करण्यात आले आहे (VIP 4+ संरक्षण वगळून).');
     } catch (err) {
       console.error('Mute all error:', err);
     }
   };
 
-  // Moderator remote mute individual
+  // Moderator remote mute individual (with VIP 4+ Anti-Mute check)
   const handleRemoteMuteUser = async (targetUser: VoiceParticipant) => {
+    // Check VIP 4+ Anti-Mute immunity
+    if ((targetUser.vipLevel || 0) >= 4 && !currentUserProfile?.isAdmin) {
+      alert(`🛡️ @${targetUser.displayName} यांच्याकडे VIP ${targetUser.vipLevel} म्यूट सुरक्षा कवच (Anti-Mute Protection) आहे!`);
+      setShowUserActionModal(false);
+      return;
+    }
+
     await voiceRoomService.muteSpeaker(
       district.id,
       targetUser.uid,
@@ -655,8 +782,15 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
     setShowUserActionModal(false);
   };
 
-  // Moderator kick user from seat
+  // Moderator kick user from seat (with VIP 6+ Anti-Kick check)
   const handleKickUser = async (targetUser: VoiceParticipant) => {
+    // Check VIP 6+ Anti-Kick immunity
+    if ((targetUser.vipLevel || 0) >= 6 && !currentUserProfile?.isAdmin) {
+      alert(`🛡️ @${targetUser.displayName} यांच्याकडे VIP ${targetUser.vipLevel} अजिंक्य सुरक्षा (Anti-Kick Immunity) आहे!`);
+      setShowUserActionModal(false);
+      return;
+    }
+
     await voiceRoomService.kickFromSeat(
       district.id,
       targetUser.uid,
@@ -666,9 +800,17 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
     setShowUserActionModal(false);
   };
 
-  // Moderator ban user
+  // Moderator ban user (with VIP 6+ protection)
   const handleBanUser = async (targetUser: VoiceParticipant) => {
     if (!currentUserProfile) return;
+
+    // Check VIP 6+ Supreme Protection
+    if ((targetUser.vipLevel || 0) >= 6 && !currentUserProfile?.isAdmin) {
+      alert(`👑 @${targetUser.displayName} यांच्याकडे VIP ${targetUser.vipLevel} सर्वोच्च सन्मान सुरक्षा अधिकार आहे!`);
+      setShowUserActionModal(false);
+      return;
+    }
+
     await voiceRoomService.banUser(
       district.id,
       targetUser.uid,
@@ -880,6 +1022,24 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
           onSendMessage={handleSendLiveMessage}
           onCleanChat={handleCleanChat}
           onClose={() => setShowChatInputModal(false)}
+        />
+      )}
+
+      {/* Real-time VIP Entry Notice Banner (2.7s total duration, fade starts at 2.35s) */}
+      {activeVipEntry && (
+        <VipEntryNoticeBanner
+          key={activeVipEntry.key || `vip_${activeVipEntry.vipLevel}`}
+          vipLevel={activeVipEntry.vipLevel}
+          userName={activeVipEntry.userName}
+          userPhoto={activeVipEntry.userPhoto}
+          durationMs={2700}
+          onDismiss={() => {
+            if (vipEntryTimerRef.current) {
+              clearTimeout(vipEntryTimerRef.current);
+              vipEntryTimerRef.current = null;
+            }
+            setActiveVipEntry(null);
+          }}
         />
       )}
 

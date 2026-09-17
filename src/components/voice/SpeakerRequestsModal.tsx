@@ -1,7 +1,8 @@
 import React from 'react';
-import { X, Check, Hand, User } from 'lucide-react';
+import { X, Check, Hand, User, Crown, Sparkles } from 'lucide-react';
 import { SpeakerRequest, voiceRoomService } from '../../services/voiceRoomService';
 import { VoiceParticipant } from '../../lib/firebase';
+import { VipBadge } from '../vip/VipBadge';
 
 interface SpeakerRequestsModalProps {
   districtId: string;
@@ -80,7 +81,17 @@ export const SpeakerRequestsModal: React.FC<SpeakerRequestsModalProps> = ({
                     )}
                   </div>
                   <div className="truncate">
-                    <div className="font-bold text-white text-xs truncate">{req.displayName}</div>
+                    <div className="font-bold text-white text-xs truncate flex items-center gap-1.5 flex-wrap">
+                      <span>{req.displayName}</span>
+                      {req.vipLevel && req.vipLevel > 0 && (
+                        <VipBadge level={req.vipLevel} size="xs" />
+                      )}
+                      {req.vipLevel && req.vipLevel >= 5 && (
+                        <span className="text-[9px] px-1.5 py-0.2 bg-amber-500/20 text-amber-300 border border-amber-400/40 rounded-full font-bold">
+                          प्राधान्य
+                        </span>
+                      )}
+                    </div>
                     <div className="text-[10px] text-amber-400">
                       {req.requestedSeat !== null && req.requestedSeat !== undefined 
                         ? `सीट ${req.requestedSeat + 1} हवी आहे` 

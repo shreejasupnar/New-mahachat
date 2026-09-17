@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Crown, 
   Sparkles, 
@@ -13,7 +13,11 @@ import {
   Mic,
   MessageSquare,
   Armchair,
-  Award
+  Award,
+  Play,
+  Volume2,
+  Sliders,
+  Feather
 } from 'lucide-react';
 import { UserProfile } from '../../lib/firebase';
 import { VIP_TIERS, calculateVipStatus, getVipTier } from '../../data/vipData';
@@ -21,6 +25,13 @@ import { VipBadge } from './VipBadge';
 import { VipSeatFrameOverlay } from './VipSeatFrameOverlay';
 import { VipEntryNoticeBanner } from './VipEntryNoticeBanner';
 import { RechargeModal } from './RechargeModal';
+import { InnovativeFrame } from './InnovativeFrame';
+import { 
+  InnovativeFrameStyle, 
+  INNOVATIVE_VIP_FRAMES, 
+  getInnovativeFrameByVip 
+} from '../../data/innovativeFramesData';
+import { equipCosmeticItem } from '../../lib/premiumFirebase';
 
 interface VipCenterScreenProps {
   currentUser: UserProfile;
@@ -28,7 +39,7 @@ interface VipCenterScreenProps {
   onOpenRecharge?: () => void;
 }
 
-type PreviewTab = 'seat' | 'bubble' | 'entry' | 'badge';
+type PreviewTab = 'frames' | 'seat' | 'bubble' | 'entry' | 'badge';
 
 export const VipCenterScreen: React.FC<VipCenterScreenProps> = ({
   currentUser,
@@ -45,11 +56,54 @@ export const VipCenterScreen: React.FC<VipCenterScreenProps> = ({
   const [selectedLevel, setSelectedLevel] = useState<number>(
     vipStatus.level > 0 ? vipStatus.level : 1
   );
-  const [previewTab, setPreviewTab] = useState<PreviewTab>('seat');
+  const [previewTab, setPreviewTab] = useState<PreviewTab>('frames');
+  const [frameStyle, setFrameStyle] = useState<InnovativeFrameStyle>('fusion');
+  const [isSimulatingSpeaking, setIsSimulatingSpeaking] = useState(false);
+  const [equipSuccessMsg, setEquipSuccessMsg] = useState<string | null>(null);
+  const [isEquipping, setIsEquipping] = useState(false);
   const [showRechargeModal, setShowRechargeModal] = useState(false);
+  const [entryPreviewCounter, setEntryPreviewCounter] = useState(0);
+  const [isEntryPreviewActive, setIsEntryPreviewActive] = useState(true);
+
+  // When previewTab changes to 'entry' or selectedLevel changes, trigger 2.7s preview animation
+  useEffect(() => {
+    if (previewTab === 'entry') {
+      setIsEntryPreviewActive(true);
+      setEntryPreviewCounter(c => c + 1);
+    }
+  }, [previewTab, selectedLevel]);
 
   const selectedTier = getVipTier(selectedLevel) || VIP_TIERS[0];
+  const selectedInnovativeTier = getInnovativeFrameByVip(selectedLevel);
   const isUnlocked = vipStatus.level >= selectedLevel;
+
+  const handleEquipInnovativeFrame = async () => {
+    if (!currentUser?.uid || !isUnlocked || isEquipping) return;
+    setIsEquipping(true);
+    try {
+      let frameId = selectedInnovativeTier.fusion.id;
+      let seatId = selectedInnovativeTier.fusion.seatId;
+      if (frameStyle === 'wings') {
+        frameId = selectedInnovativeTier.wings.id;
+        seatId = selectedInnovativeTier.wings.seatId;
+      } else if (frameStyle === 'mandala') {
+        frameId = selectedInnovativeTier.mandala.id;
+        seatId = selectedInnovativeTier.mandala.seatId;
+      }
+
+      await equipCosmeticItem(currentUser.uid, 'equippedFrame', frameId);
+      await equipCosmeticItem(currentUser.uid, 'equippedSeatFrame', seatId);
+      
+      const styleName = frameStyle === 'wings' ? 'विंग्स स्टाइल' : frameStyle === 'mandala' ? 'मंडला स्टाइल' : 'फ्युजन स्टाइल';
+      setEquipSuccessMsg(`✨ VIP ${selectedLevel} ची ${styleName} फ्रेम प्रोफाइल व सीटवर लागू झाली!`);
+      setTimeout(() => setEquipSuccessMsg(null), 3500);
+    } catch (err) {
+      console.error('Error equipping frame:', err);
+    } finally {
+      setIsEquipping(false);
+    }
+  };
+
 
   return (
     <div className="flex-1 flex flex-col bg-slate-950 text-white min-h-screen pb-24 select-none">
@@ -289,11 +343,22 @@ export const VipCenterScreen: React.FC<VipCenterScreenProps> = ({
           {/* Interactive Live Preview Box */}
           <div className="mt-4 bg-slate-950/80 rounded-2xl p-4 border border-slate-800">
             {/* Preview Tabs */}
-            <div className="flex items-center justify-around border-b border-slate-800 pb-2 mb-3 text-xs font-bold text-slate-400">
+            <div className="flex items-center justify-around border-b border-slate-800 pb-2 mb-3 text-xs font-bold text-slate-400 overflow-x-auto gap-1">
+              <button
+                type="button"
+                onClick={() => setPreviewTab('frames')}
+                className={`flex items-center gap-1 pb-1 transition-colors cursor-pointer whitespace-nowrap ${
+                  previewTab === 'frames' ? 'text-amber-400 border-b-2 border-amber-400' : 'hover:text-slate-200'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>विंग्स व मंडला</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setPreviewTab('seat')}
-                className={`flex items-center gap-1 pb-1 transition-colors cursor-pointer ${
+                className={`flex items-center gap-1 pb-1 transition-colors cursor-pointer whitespace-nowrap ${
                   previewTab === 'seat' ? 'text-amber-400 border-b-2 border-amber-400' : 'hover:text-slate-200'
                 }`}
               >
@@ -304,7 +369,7 @@ export const VipCenterScreen: React.FC<VipCenterScreenProps> = ({
               <button
                 type="button"
                 onClick={() => setPreviewTab('bubble')}
-                className={`flex items-center gap-1 pb-1 transition-colors cursor-pointer ${
+                className={`flex items-center gap-1 pb-1 transition-colors cursor-pointer whitespace-nowrap ${
                   previewTab === 'bubble' ? 'text-amber-400 border-b-2 border-amber-400' : 'hover:text-slate-200'
                 }`}
               >
@@ -315,7 +380,7 @@ export const VipCenterScreen: React.FC<VipCenterScreenProps> = ({
               <button
                 type="button"
                 onClick={() => setPreviewTab('entry')}
-                className={`flex items-center gap-1 pb-1 transition-colors cursor-pointer ${
+                className={`flex items-center gap-1 pb-1 transition-colors cursor-pointer whitespace-nowrap ${
                   previewTab === 'entry' ? 'text-amber-400 border-b-2 border-amber-400' : 'hover:text-slate-200'
                 }`}
               >
@@ -326,7 +391,7 @@ export const VipCenterScreen: React.FC<VipCenterScreenProps> = ({
               <button
                 type="button"
                 onClick={() => setPreviewTab('badge')}
-                className={`flex items-center gap-1 pb-1 transition-colors cursor-pointer ${
+                className={`flex items-center gap-1 pb-1 transition-colors cursor-pointer whitespace-nowrap ${
                   previewTab === 'badge' ? 'text-amber-400 border-b-2 border-amber-400' : 'hover:text-slate-200'
                 }`}
               >
@@ -335,11 +400,144 @@ export const VipCenterScreen: React.FC<VipCenterScreenProps> = ({
               </button>
             </div>
 
+            {/* Success Toast */}
+            {equipSuccessMsg && (
+              <div className="mb-3 p-2.5 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs font-bold text-center animate-fade-in shadow-lg">
+                {equipSuccessMsg}
+              </div>
+            )}
+
             {/* Preview Tab Content */}
-            <div className="min-h-[100px] flex items-center justify-center p-2 relative">
+            <div className="min-h-[140px] flex flex-col items-center justify-center p-2 relative">
+              {/* INNOVATIVE WINGS & MANDALA PREVIEW */}
+              {previewTab === 'frames' && (
+                <div className="w-full flex flex-col items-center gap-4">
+                  {/* Style Mode Selector Pill */}
+                  <div className="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-800 text-xs font-black shadow-inner">
+                    <button
+                      type="button"
+                      onClick={() => setFrameStyle('wings')}
+                      className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                        frameStyle === 'wings'
+                          ? 'bg-amber-500 text-slate-950 shadow-md font-extrabold'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <span>🪶</span>
+                      <span>विंग्स (Wings)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFrameStyle('mandala')}
+                      className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                        frameStyle === 'mandala'
+                          ? 'bg-amber-500 text-slate-950 shadow-md font-extrabold'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <span>☸️</span>
+                      <span>मंडला (Mandala)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFrameStyle('fusion')}
+                      className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                        frameStyle === 'fusion'
+                          ? 'bg-gradient-to-r from-amber-400 to-rose-400 text-slate-950 shadow-md font-extrabold'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <span>✨</span>
+                      <span>फ्युजन (Fusion)</span>
+                    </button>
+                  </div>
+
+                  {/* High Visual Frame Avatar Presentation */}
+                  <div className="my-2 relative flex items-center justify-center p-4">
+                    <InnovativeFrame
+                      vipLevel={selectedLevel}
+                      style={frameStyle}
+                      size="xl"
+                      isSpeaking={isSimulatingSpeaking}
+                      showCrest={true}
+                      showBadge={true}
+                    >
+                      <img 
+                        src={currentUser.photoURL || '/icon.png'} 
+                        alt="Avatar" 
+                        className="w-full h-full object-cover"
+                      />
+                    </InnovativeFrame>
+                  </div>
+
+                  {/* Frame Description & Voice Simulation */}
+                  <div className="w-full max-w-sm bg-slate-900/60 p-3 rounded-xl border border-slate-800 text-center space-y-2">
+                    <div className="text-xs font-bold text-amber-300">
+                      {frameStyle === 'wings' 
+                        ? selectedInnovativeTier.wings.nameMr
+                        : frameStyle === 'mandala'
+                        ? selectedInnovativeTier.mandala.nameMr
+                        : selectedInnovativeTier.fusion.nameMr}
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      {frameStyle === 'wings' 
+                        ? selectedInnovativeTier.wings.descriptionMr
+                        : frameStyle === 'mandala'
+                        ? selectedInnovativeTier.mandala.descriptionMr
+                        : selectedInnovativeTier.fusion.descriptionMr}
+                    </p>
+
+                    {/* Mic test button */}
+                    <div className="flex items-center justify-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setIsSimulatingSpeaking(prev => !prev)}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
+                          isSimulatingSpeaking
+                            ? 'bg-rose-500/20 text-rose-300 border-rose-500/50 animate-pulse'
+                            : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                        }`}
+                      >
+                        <Mic className={`w-3 h-3 ${isSimulatingSpeaking ? 'text-rose-400' : 'text-slate-400'}`} />
+                        <span>{isSimulatingSpeaking ? 'माईक सुरू आहे (बोलताना इफेक्ट)' : 'माईक इफेक्ट टेस्ट करा'}</span>
+                      </button>
+                    </div>
+
+                    {/* Direct Equip Button */}
+                    <div className="pt-2">
+                      {isUnlocked ? (
+                        <button
+                          type="button"
+                          onClick={handleEquipInnovativeFrame}
+                          disabled={isEquipping}
+                          className="w-full py-2.5 px-4 rounded-xl font-black text-xs bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-yellow-500 text-slate-950 shadow-lg shadow-amber-500/30 flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all"
+                        >
+                          <Check className="w-3.5 h-3.5 stroke-[3]" />
+                          <span>{isEquipping ? 'लागू होत आहे...' : '✨ ही फ्रेम अवतारावर आणि सीटवर लागू करा'}</span>
+                        </button>
+                      ) : (
+                        <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-slate-950 border border-slate-800 text-xs">
+                          <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                            <Lock className="w-3 h-3 text-amber-400" />
+                            <span>VIP {selectedLevel} वर अनलॉक होईल</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setShowRechargeModal(true)}
+                            className="px-3 py-1 rounded-lg bg-amber-500 text-slate-950 font-black text-[11px] hover:bg-amber-400 cursor-pointer"
+                          >
+                            रिचार्ज
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {previewTab === 'seat' && (
                 <div className="flex flex-col items-center gap-2">
-                  <div className="relative w-18 h-18 rounded-full bg-slate-900 flex items-center justify-center">
+                  <div className="relative w-20 h-20 rounded-full bg-slate-900 flex items-center justify-center">
                     <img 
                       src={currentUser.photoURL || '/icon.png'} 
                       alt="Avatar" 
@@ -347,8 +545,8 @@ export const VipCenterScreen: React.FC<VipCenterScreenProps> = ({
                     />
                     <VipSeatFrameOverlay vipLevel={selectedLevel} isSpeaking={true} />
                   </div>
-                  <span className="text-[11px] text-slate-400 font-bold">
-                    व्हॉईस रूम कट्ट्यावरील सीट फ्रेम
+                  <span className="text-[11px] text-slate-400 font-bold mt-2">
+                    व्हॉईस रूम कट्ट्यावरील सीट फ्रेम (विंग्स व मंडला सह)
                   </span>
                 </div>
               )}
@@ -368,13 +566,39 @@ export const VipCenterScreen: React.FC<VipCenterScreenProps> = ({
               )}
 
               {previewTab === 'entry' && (
-                <div className="w-full max-w-xs">
-                  <VipEntryNoticeBanner
-                    vipLevel={selectedLevel}
-                    userName={currentUser.displayName}
-                    userPhoto={currentUser.photoURL}
-                    durationMs={999999}
-                  />
+                <div className="w-full max-w-xs flex flex-col items-center gap-2.5">
+                  {isEntryPreviewActive ? (
+                    <VipEntryNoticeBanner
+                      key={`preview_${selectedLevel}_${entryPreviewCounter}`}
+                      vipLevel={selectedLevel}
+                      userName={currentUser.displayName}
+                      userPhoto={currentUser.photoURL}
+                      durationMs={2700}
+                      isInline={true}
+                      onDismiss={() => setIsEntryPreviewActive(false)}
+                    />
+                  ) : (
+                    <div className="w-full py-3.5 px-4 rounded-2xl bg-slate-800/80 border border-slate-700 flex flex-col items-center gap-2 text-center animate-in fade-in zoom-in-95 duration-200">
+                      <div className="flex items-center gap-1.5 text-xs text-slate-300 font-semibold">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                        <span>प्रवेश इफेक्ट (२.७ सेकंद) समाप्त झाला</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsEntryPreviewActive(true);
+                          setEntryPreviewCounter(c => c + 1);
+                        }}
+                        className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black flex items-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        <span>पुन्हा पहा (Replay)</span>
+                      </button>
+                    </div>
+                  )}
+                  <span className="text-[10px] text-slate-400 font-medium text-center">
+                    व्हॉईस रूममध्ये प्रवेश केल्यावर २.५ ते ३ सेकंद झळकणारा राजेशाही बॅनर
+                  </span>
                 </div>
               )}
 
@@ -462,6 +686,97 @@ export const VipCenterScreen: React.FC<VipCenterScreenProps> = ({
                   कायमस्वरूपी (Lifetime)
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* INNOVATIVE FRAMES PROGRESSION SHOWCASE (VIP 1 - 8) */}
+          <div className="mt-6">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h4 className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>विंग्स व मंडला फ्रेम्स व्हॉल्ट (VIP 1 ते 8)</span>
+                </h4>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  जसा VIP स्तर वाढेल तशा अधिक भव्य व आकर्षक पंख व चक्राकार मंडला फ्रेम्स अनलॉक होतात
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {INNOVATIVE_VIP_FRAMES.map((tier) => {
+                const tierUnlocked = vipStatus.level >= tier.vipLevel;
+                const isCurrentSelected = selectedLevel === tier.vipLevel;
+
+                return (
+                  <div
+                    key={tier.vipLevel}
+                    onClick={() => {
+                      setSelectedLevel(tier.vipLevel);
+                      setPreviewTab('frames');
+                    }}
+                    className={`p-3 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex items-center gap-3 ${
+                      isCurrentSelected
+                        ? 'bg-slate-900 border-amber-500/80 shadow-lg shadow-amber-500/20 ring-1 ring-amber-500/50'
+                        : tierUnlocked
+                        ? 'bg-slate-900/60 border-slate-700/80 hover:border-slate-600'
+                        : 'bg-slate-950/70 border-slate-800/80 opacity-80 hover:opacity-100'
+                    }`}
+                  >
+                    {/* Frame Miniature Preview */}
+                    <div className="w-14 h-14 shrink-0 flex items-center justify-center relative">
+                      <InnovativeFrame
+                        vipLevel={tier.vipLevel}
+                        style={frameStyle}
+                        size="sm"
+                        showCrest={false}
+                        showBadge={false}
+                      >
+                        <div className="w-full h-full bg-slate-950 flex items-center justify-center text-xs font-black text-amber-300">
+                          {tier.crestIcon}
+                        </div>
+                      </InnovativeFrame>
+                    </div>
+
+                    {/* Frame Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-xs font-black text-white flex items-center gap-1 truncate">
+                          <span className="text-amber-400 font-extrabold">VIP {tier.vipLevel}</span>
+                          <span className="text-slate-300 font-bold truncate">{tier.themeName}</span>
+                        </span>
+                        {tierUnlocked ? (
+                          <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 text-[9px] font-black shrink-0">
+                            अनलॉक
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 text-[9px] font-bold shrink-0 flex items-center gap-0.5">
+                            <Lock className="w-2.5 h-2.5" />
+                            <span>लॉक</span>
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Wings & Mandala details */}
+                      <div className="text-[10px] text-slate-400 mt-1 flex flex-col gap-0.5">
+                        <span className="text-amber-200/90 truncate flex items-center gap-1">
+                          <span>🪶</span>
+                          <span>{tier.wings.nameMr}</span>
+                        </span>
+                        <span className="text-yellow-200/80 truncate flex items-center gap-1">
+                          <span>☸️</span>
+                          <span>{tier.mandala.nameMr}</span>
+                        </span>
+                      </div>
+
+                      {/* Tap to Preview CTA */}
+                      <div className="text-[9px] text-slate-500 mt-1 font-semibold flex items-center gap-1">
+                        <span>{isCurrentSelected ? '👉 सध्या पाहत आहात' : 'पाहण्यासाठी स्पर्श करा'}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 

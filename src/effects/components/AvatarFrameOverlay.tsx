@@ -1,5 +1,7 @@
 import React from 'react';
 import { EffectRarity } from '../types';
+import { findInnovativeFrameById } from '../../data/innovativeFramesData';
+import { InnovativeFrame } from '../../components/vip/InnovativeFrame';
 
 interface AvatarFrameOverlayProps {
   rarity?: EffectRarity | 'none';
@@ -16,6 +18,22 @@ export const AvatarFrameOverlay: React.FC<AvatarFrameOverlayProps> = ({
   children,
   showCrown = false
 }) => {
+  // If frameId is an innovative Wings/Mandala/Fusion frame, use InnovativeFrame
+  const innovativeMatch = frameId ? findInnovativeFrameById(frameId) : null;
+  if (innovativeMatch) {
+    return (
+      <InnovativeFrame
+        vipLevel={innovativeMatch.tier.vipLevel}
+        style={innovativeMatch.style}
+        size={size}
+        showCrest={showCrown || innovativeMatch.tier.vipLevel >= 3}
+        showBadge={innovativeMatch.tier.vipLevel >= 2}
+      >
+        {children}
+      </InnovativeFrame>
+    );
+  }
+
   // Infer rarity from frameId if present
   let resolvedRarity = rarity;
   if (frameId) {
@@ -25,6 +43,7 @@ export const AvatarFrameOverlay: React.FC<AvatarFrameOverlayProps> = ({
     else if (frameId.includes('rare') || frameId.includes('emerald')) resolvedRarity = 'rare';
     else if (frameId.includes('common') || frameId.includes('bronze')) resolvedRarity = 'common';
   }
+
 
   const getContainerSize = () => {
     switch (size) {

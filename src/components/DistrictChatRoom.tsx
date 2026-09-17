@@ -79,12 +79,21 @@ export const DistrictChatRoom: React.FC<DistrictChatRoomProps> = ({
   const [showGiftModal, setShowGiftModal] = useState(false);
   const [activeGiftOverlay, setActiveGiftOverlay] = useState<RoomGiftEvent | null>(null);
   const [activeEntryOverlay, setActiveEntryOverlay] = useState<RoomEntryEvent | null>(null);
+  const entryOverlayTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [selectedMessageForReport, setSelectedMessageForReport] = useState<ChatMessage | null>(null);
   const [reportReason, setReportReason] = useState('');
   const [reportSuccess, setReportSuccess] = useState(false);
   const [lastSentTime, setLastSentTime] = useState(0);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    return () => {
+      if (entryOverlayTimerRef.current) {
+        clearTimeout(entryOverlayTimerRef.current);
+      }
+    };
+  }, []);
 
   // Broadcast entry effect when entering room if user has it equipped
   useEffect(() => {
@@ -103,7 +112,14 @@ export const DistrictChatRoom: React.FC<DistrictChatRoomProps> = ({
 
     const unsubEntries = subscribeToRoomEntries(district.id, (entry) => {
       if (entry && entry.userId !== currentUserProfile?.uid) {
+        if (entryOverlayTimerRef.current) {
+          clearTimeout(entryOverlayTimerRef.current);
+        }
         setActiveEntryOverlay(entry);
+        entryOverlayTimerRef.current = setTimeout(() => {
+          setActiveEntryOverlay(null);
+          entryOverlayTimerRef.current = null;
+        }, 2700);
       }
     });
 
@@ -271,7 +287,14 @@ export const DistrictChatRoom: React.FC<DistrictChatRoomProps> = ({
       {activeEntryOverlay && (
         <EntryEffectOverlay
           event={activeEntryOverlay}
-          onDismiss={() => setActiveEntryOverlay(null)}
+          durationMs={2700}
+          onDismiss={() => {
+            if (entryOverlayTimerRef.current) {
+              clearTimeout(entryOverlayTimerRef.current);
+              entryOverlayTimerRef.current = null;
+            }
+            setActiveEntryOverlay(null);
+          }}
         />
       )}
 

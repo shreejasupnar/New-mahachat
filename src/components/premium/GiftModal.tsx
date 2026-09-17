@@ -21,6 +21,7 @@ import { UserProfile } from '../../lib/firebase';
 import { sendRealRoomGift } from '../../lib/premiumFirebase';
 import { celebrationAudio } from '../../lib/celebrationAudio';
 import { seatGiftFlightManager } from '../voice/SeatGiftFlightAnimation';
+import { getVipTier } from '../../data/vipData';
 
 export interface RoomRecipientOption {
   uid: string;
@@ -305,11 +306,17 @@ export const GiftModal: React.FC<GiftModalProps> = ({
               <Gift className="w-4 h-4 text-white" />
             </div>
             <div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-xs font-black text-white">भेटवस्तू (Gifts)</span>
                 <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
                   ५५+ सांस्कृतिक भेटवस्तू
                 </span>
+                {currentUser.vipLevel && currentUser.vipLevel >= 1 && (
+                  <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-gradient-to-r from-amber-500/30 to-yellow-500/30 text-yellow-300 font-black border border-yellow-400/50 flex items-center gap-0.5">
+                    <Crown className="w-2.5 h-2.5 text-yellow-400" />
+                    <span>VIP {currentUser.vipLevel} ({getVipTier(currentUser.vipLevel)?.charmMultiplier || 1}x चार्म)</span>
+                  </span>
+                )}
               </div>
             </div>
           </div>

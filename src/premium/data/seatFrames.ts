@@ -1,6 +1,53 @@
 import { PremiumSeatFrame } from '../types';
+import { INNOVATIVE_VIP_FRAMES } from '../../data/innovativeFramesData';
+
+const INNOVATIVE_STAGE_SEAT_FRAMES: PremiumSeatFrame[] = INNOVATIVE_VIP_FRAMES.flatMap(tier => [
+  {
+    id: tier.wings.seatId,
+    nameMr: tier.wings.nameMr,
+    nameEn: tier.wings.nameEn,
+    category: 'seatFrames',
+    theme: 'विंग्स स्टाइल (Wings Style)',
+    previewIcon: tier.wings.icon,
+    culturalTheme: `VIP ${tier.vipLevel} ${tier.wings.descriptionMr}`,
+    seatRingClass: 'ring-4 ring-amber-400 ring-offset-2 ring-offset-slate-900 shadow-xl shadow-amber-500/60',
+    crownBadge: tier.wings.icon,
+    glowColor: tier.wings.gradient[2],
+    pulseAnimation: 'animate-pulse',
+    premiumRequired: true
+  },
+  {
+    id: tier.mandala.seatId,
+    nameMr: tier.mandala.nameMr,
+    nameEn: tier.mandala.nameEn,
+    category: 'seatFrames',
+    theme: 'मंडला स्टाइल (Mandala Style)',
+    previewIcon: tier.mandala.icon,
+    culturalTheme: `VIP ${tier.vipLevel} ${tier.mandala.descriptionMr}`,
+    seatRingClass: 'ring-4 ring-yellow-400 ring-offset-2 ring-offset-slate-900 shadow-xl shadow-yellow-500/60',
+    crownBadge: tier.mandala.icon,
+    glowColor: tier.mandala.gradient[2],
+    pulseAnimation: 'animate-pulse',
+    premiumRequired: true
+  },
+  {
+    id: tier.fusion.seatId,
+    nameMr: tier.fusion.nameMr,
+    nameEn: tier.fusion.nameEn,
+    category: 'seatFrames',
+    theme: 'फ्युजन स्टाइल (Wings + Mandala)',
+    previewIcon: tier.crestIcon,
+    culturalTheme: `VIP ${tier.vipLevel} ${tier.fusion.descriptionMr}`,
+    seatRingClass: 'ring-4 ring-rose-400 ring-offset-2 ring-offset-slate-900 shadow-2xl shadow-rose-500/70',
+    crownBadge: tier.crestIcon,
+    glowColor: tier.auraGlow,
+    pulseAnimation: 'animate-pulse',
+    premiumRequired: true
+  }
+]);
 
 export const PREMIUM_SEAT_FRAMES: PremiumSeatFrame[] = [
+  ...INNOVATIVE_STAGE_SEAT_FRAMES,
   // 1 - 10: Sahyadri & Fort Seats
   {
     id: 'seat_sahyadri_summit',

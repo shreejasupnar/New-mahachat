@@ -9,6 +9,7 @@ import {
 import { AvatarFrameOverlay } from '../../effects';
 import { VipSeatFrameOverlay } from '../vip/VipSeatFrameOverlay';
 import { VipBadge } from '../vip/VipBadge';
+import { findInnovativeFrameById } from '../../data/innovativeFramesData';
 
 interface PartyStageSeatsProps {
   seats: (VoiceParticipant | null)[];
@@ -39,8 +40,11 @@ export const PartyStageSeats: React.FC<PartyStageSeatsProps> = ({
       : (occupant?.isSpeaking || remoteVolume > 15);
     const muted = isMe ? isMuted : occupant?.isMuted;
 
-    const frameId = occupant ? (occupant.equippedSeatFrame || (isMe ? currentUserProfile?.equippedSeatFrame : undefined)) : undefined;
+    const frameId = occupant 
+      ? (occupant.equippedSeatFrame || occupant.equippedFrame || (isMe ? (currentUserProfile?.equippedSeatFrame || currentUserProfile?.equippedFrame) : undefined)) 
+      : undefined;
     const seatFrame = frameId ? getSeatFrameById(frameId) : null;
+    const isInnovative = Boolean(frameId && findInnovativeFrameById(frameId));
     const badgeId = occupant ? (occupant.equippedBadge || (isMe ? currentUserProfile?.equippedBadge : undefined)) : undefined;
     const badge = badgeId ? getBadgeById(badgeId) : null;
     const nameEffectId = occupant ? (occupant.equippedNameEffect || (isMe ? currentUserProfile?.equippedNameEffect : undefined)) : undefined;
@@ -62,13 +66,14 @@ export const PartyStageSeats: React.FC<PartyStageSeatsProps> = ({
         >
           {/* Avatar Container with glowing speaking ring & mic status */}
           <div className="relative w-13 h-13 sm:w-15 sm:h-15 flex items-center justify-center">
+            {/* Standard Avatar Frame wrapper if not innovative */}
             <AvatarFrameOverlay
-              frameId={frameId}
+              frameId={isInnovative ? undefined : frameId}
               size="md"
               showCrown={Boolean(seatFrame?.crownBadge)}
             >
               <div
-                className={`w-full h-full rounded-full overflow-hidden p-0.5 transition-all duration-200 ${
+                className={`w-full h-full rounded-full overflow-hidden p-0.5 transition-all duration-200 aspect-square flex items-center justify-center ${
                   activelySpeaking
                     ? 'ring-2 ring-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.85)] scale-105'
                     : seatFrame
@@ -80,20 +85,30 @@ export const PartyStageSeats: React.FC<PartyStageSeatsProps> = ({
                   <img
                     src={occupant.photoURL}
                     alt={occupant.displayName}
-                    className="w-full h-full rounded-full object-cover shadow-sm"
+                    className="w-full h-full rounded-full object-cover shadow-sm aspect-square"
                     referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLElement).style.display = 'none';
+                      const fallbackEl = e.currentTarget.parentElement?.querySelector('.avatar-seat-fallback') as HTMLElement;
+                      if (fallbackEl) fallbackEl.style.display = 'flex';
+                    }}
                   />
-                ) : (
-                  <div className="w-full h-full rounded-full bg-gradient-to-br from-indigo-700 to-purple-900 flex items-center justify-center font-bold text-sm text-white">
-                    {occupant.displayName?.slice(0, 1) || 'U'}
-                  </div>
-                )}
+                ) : null}
+                <div 
+                  className={`avatar-seat-fallback w-full h-full rounded-full bg-gradient-to-br from-indigo-700 to-purple-900 flex items-center justify-center font-bold text-sm text-white ${occupant.photoURL ? 'hidden' : 'flex'}`}
+                >
+                  {occupant.displayName?.slice(0, 1) || 'U'}
+                </div>
               </div>
             </AvatarFrameOverlay>
 
-            {/* VIP Luxury Seat Frame Overlay */}
-            {occupantVipLevel > 0 && (
-              <VipSeatFrameOverlay vipLevel={occupantVipLevel} isSpeaking={activelySpeaking} />
+            {/* VIP Luxury / Innovative Seat Frame Overlay (Wings, Mandala, Fusion) */}
+            {(occupantVipLevel > 0 || isInnovative) && (
+              <VipSeatFrameOverlay 
+                vipLevel={occupantVipLevel || 1} 
+                frameId={frameId}
+                isSpeaking={activelySpeaking} 
+              />
             )}
 
             {/* Mic Status Indicator Badge at bottom-right (matching screenshot: green mic for open/talking, dark/red for muted) */}

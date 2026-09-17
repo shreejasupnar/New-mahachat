@@ -53,10 +53,12 @@ export interface RechargeTransactionRecord {
   coinsGranted: number;
   bonusCoinsGranted: number;
   expGranted: number;
-  paymentMethod: string; // 'RAZORPAY' | 'UPI'
+  paymentMethod: string; // 'GOOGLE_PAY' | 'UPI'
   transactionRef: string;
-  razorpayOrderId?: string;
-  razorpayPaymentId?: string;
+  googlePayOrderId?: string;
+  googlePayTransactionId?: string;
+  razorpayOrderId?: string; // Backwards-compatible
+  razorpayPaymentId?: string; // Backwards-compatible
   createdAt: string;
   status: 'completed' | 'pending' | 'failed';
 }

@@ -12,6 +12,8 @@ import {
   Star 
 } from 'lucide-react';
 import { VoiceParticipant } from '../../lib/firebase';
+import { VipBadge } from '../vip/VipBadge';
+import { getVipTier } from '../../data/vipData';
 
 interface UserActionModalProps {
   user: VoiceParticipant;
@@ -79,16 +81,26 @@ export const UserActionModal: React.FC<UserActionModalProps> = ({
           </div>
 
           <div>
-            <h3 className="font-bold text-white text-base flex items-center justify-center gap-1.5">
+            <h3 className="font-bold text-white text-base flex items-center justify-center gap-1.5 flex-wrap">
               <span>{user.displayName}</span>
-              {user.isPremium && <span className="text-[10px] px-1.5 py-0.2 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black rounded-md">VIP</span>}
+              {user.vipLevel && user.vipLevel > 0 ? (
+                <VipBadge level={user.vipLevel} size="sm" />
+              ) : user.isPremium ? (
+                <span className="text-[10px] px-1.5 py-0.2 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black rounded-md">VIP</span>
+              ) : null}
             </h3>
-            <p className="text-xs text-pink-400 font-semibold flex items-center justify-center gap-1">
+            <p className="text-xs text-pink-400 font-semibold flex items-center justify-center gap-1 mt-0.5">
               <Star className="w-3 h-3 fill-pink-400" />
               <span>आकर्षक पॉईंट्स: {user.charmScore || 0}</span>
             </p>
+            {user.vipLevel && user.vipLevel >= 4 && (
+              <div className="mt-1.5 flex items-center justify-center gap-1 px-2 py-0.5 bg-amber-500/15 border border-amber-400/40 rounded-full text-[10px] text-amber-300 font-bold">
+                <ShieldCheck className="w-3 h-3 text-amber-400" />
+                <span>VIP {user.vipLevel}: {user.vipLevel >= 6 ? 'अजिंक्य सुरक्षा (Anti-Kick/Mute)' : 'म्यूट सुरक्षा कवच (Anti-Mute)'}</span>
+              </div>
+            )}
             {isSpeaker && (
-              <p className="text-[11px] text-slate-400 mt-0.5">
+              <p className="text-[11px] text-slate-400 mt-1">
                 सीट {user.seatIndex! + 1} वर उपस्थित • {user.isMuted ? 'माइक बंद 🔇' : 'माइक सुरू 🎙️'}
               </p>
             )}

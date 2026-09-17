@@ -1,6 +1,50 @@
 import { PremiumScreenFrame } from '../types';
+import { INNOVATIVE_VIP_FRAMES } from '../../data/innovativeFramesData';
+
+const INNOVATIVE_SCREEN_FRAMES: PremiumScreenFrame[] = INNOVATIVE_VIP_FRAMES.flatMap(tier => [
+  {
+    id: tier.wings.id,
+    nameMr: tier.wings.nameMr,
+    nameEn: tier.wings.nameEn,
+    category: 'frames',
+    theme: 'विंग्स स्टाइल (Wings Style)',
+    previewIcon: tier.wings.icon,
+    culturalTheme: `VIP ${tier.vipLevel} ${tier.wings.descriptionMr}`,
+    borderClass: 'border-2 border-amber-400 ring-4 ring-amber-500/30 shadow-xl shadow-amber-900/30',
+    glowColor: tier.wings.gradient[2],
+    cornerMotif: tier.wings.icon,
+    premiumRequired: true
+  },
+  {
+    id: tier.mandala.id,
+    nameMr: tier.mandala.nameMr,
+    nameEn: tier.mandala.nameEn,
+    category: 'frames',
+    theme: 'मंडला स्टाइल (Mandala Style)',
+    previewIcon: tier.mandala.icon,
+    culturalTheme: `VIP ${tier.vipLevel} ${tier.mandala.descriptionMr}`,
+    borderClass: 'border-2 border-yellow-400 ring-4 ring-yellow-500/40 shadow-xl shadow-yellow-950/40',
+    glowColor: tier.mandala.gradient[2],
+    cornerMotif: tier.mandala.icon,
+    premiumRequired: true
+  },
+  {
+    id: tier.fusion.id,
+    nameMr: tier.fusion.nameMr,
+    nameEn: tier.fusion.nameEn,
+    category: 'frames',
+    theme: 'फ्युजन स्टाइल (Wings + Mandala)',
+    previewIcon: tier.crestIcon,
+    culturalTheme: `VIP ${tier.vipLevel} ${tier.fusion.descriptionMr}`,
+    borderClass: 'border-2 border-rose-400 ring-4 ring-rose-500/40 shadow-2xl shadow-rose-950/50',
+    glowColor: tier.auraGlow,
+    cornerMotif: tier.crestIcon,
+    premiumRequired: true
+  }
+]);
 
 export const PREMIUM_SCREEN_FRAMES: PremiumScreenFrame[] = [
+  ...INNOVATIVE_SCREEN_FRAMES,
   // 1 - 10: Sahyadri & Forts
   {
     id: 'frame_sahyadri_peaks',

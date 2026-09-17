@@ -14,7 +14,8 @@ import {
 } from 'lucide-react';
 import { UserProfile, db } from '../../lib/firebase';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { processRazorpayCheckout } from '../../services/razorpayService';
+import { processGooglePayWebCheckout, buildGooglePayTezLink } from '../../services/googlePayService';
+import { verifyGooglePayPayment } from '../../lib/googlePay';
 
 interface BuyCoinsModalProps {
   currentUser: UserProfile;
@@ -35,17 +36,27 @@ export const BuyCoinsModal: React.FC<BuyCoinsModalProps> = ({
   onClose
 }) => {
   const [selectedPack, setSelectedPack] = useState(COIN_PACKAGES[1]);
-  const [paymentTab, setPaymentTab] = useState<'upi' | 'razorpay'>('upi');
+  const [paymentTab, setPaymentTab] = useState<'googlepay' | 'upi'>('googlepay');
   const [merchantUpiId, setMerchantUpiId] = useState('7620363213@ybl');
   const [secondaryUpiId, setSecondaryUpiId] = useState('7620363213-2@ybl');
   const [merchantName, setMerchantName] = useState('IndusInd Bank - 3213');
+  const [googlePayMerchantName, setGooglePayMerchantName] = useState('IndusInd Bank - 3213');
+  const [googlePayUpiId, setGooglePayUpiId] = useState('7620363213@ybl');
+
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [copiedSecondaryUpi, setCopiedSecondaryUpi] = useState(false);
+  const [copiedGpayUpi, setCopiedGpayUpi] = useState(false);
+
   const [utrInput, setUtrInput] = useState('');
   const [utrError, setUtrError] = useState<string | null>(null);
   const [isVerifyingUtr, setIsVerifyingUtr] = useState(false);
-  const [loadingRazorpay, setLoadingRazorpay] = useState(false);
-  const [razorpayError, setRazorpayError] = useState<string | null>(null);
+
+  const [gpayUtrInput, setGpayUtrInput] = useState('');
+  const [gpayUtrError, setGpayUtrError] = useState<string | null>(null);
+  const [isVerifyingGpayUtr, setIsVerifyingGpayUtr] = useState(false);
+
+  const [loadingGooglePay, setLoadingGooglePay] = useState(false);
+  const [googlePayError, setGooglePayError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -55,6 +66,8 @@ export const BuyCoinsModal: React.FC<BuyCoinsModalProps> = ({
         if (data.upiId) setMerchantUpiId(data.upiId);
         if (data.upiSecondaryId) setSecondaryUpiId(data.upiSecondaryId);
         if (data.upiName) setMerchantName(data.upiName);
+        if (data.googlePayMerchantName) setGooglePayMerchantName(data.googlePayMerchantName);
+        if (data.googlePayUpiId) setGooglePayUpiId(data.googlePayUpiId);
       })
       .catch(() => {});
   }, []);
@@ -146,53 +159,130 @@ export const BuyCoinsModal: React.FC<BuyCoinsModalProps> = ({
     }
   };
 
-  // Real Razorpay Checkout powered by server-side initialized order & HMAC verification service
-  const handleRazorpayPurchase = async () => {
-    setLoadingRazorpay(true);
-    setRazorpayError(null);
+  const gpayTxnRef = `MCVC${Date.now().toString().slice(-8)}`;
+  const gpayTezUrl = buildGooglePayTezLink({
+    merchantUpiId: googlePayUpiId,
+    merchantName: googlePayMerchantName,
+    mcc: '5812',
+    transactionRef: gpayTxnRef,
+    amount: selectedPack.price,
+    note: `MahaChat ${selectedPack.coins} Coins`
+  });
+  const gpayQrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=8&data=${encodeURIComponent(gpayTezUrl)}`;
+
+  const handleCopyGpayUpi = () => {
+    navigator.clipboard.writeText(googlePayUpiId);
+    setCopiedGpayUpi(true);
+    setTimeout(() => setCopiedGpayUpi(false), 2500);
+  };
+
+  // Google Pay Web / Sheet Checkout
+  const handleGooglePayPurchase = async () => {
+    setLoadingGooglePay(true);
+    setGooglePayError(null);
 
     try {
-      const verifiedResult = await processRazorpayCheckout({
+      const verifiedResult = await processGooglePayWebCheckout({
         planId: selectedPack.id,
         amount: selectedPack.price,
-        planName: `${selectedPack.coins} महा कॉईन्स रिचार्ज`,
-        description: `वॉईस रूम्स आणि भेटवस्तूसाठी नाणी`,
+        planName: `${selectedPack.coins} महा कॉईन्स पॅक`,
+        description: 'वॉईस रूम्स आणि भेटवस्तूसाठी नाणी',
         user: {
           uid: currentUser.uid,
           displayName: currentUser.displayName,
           email: currentUser.email,
           phoneNumber: currentUser.phoneNumber
-        },
-        themeColor: '#f97316'
+        }
       });
+
+      if (verifiedResult.verified) {
+        const currentCoins = Number(currentUser.coins) || 0;
+        const newBalance = currentCoins + selectedPack.coins;
+        await updateDoc(doc(db, 'users', currentUser.uid), { coins: newBalance });
+        
+        const txnRef = verifiedResult.transactionRef || verifiedResult.orderId;
+        await setDoc(doc(db, 'recharges', txnRef), {
+          id: txnRef,
+          userId: currentUser.uid,
+          packageId: selectedPack.id,
+          inrPrice: selectedPack.price,
+          coinsGranted: selectedPack.coins,
+          paymentMethod: 'GOOGLE_PAY',
+          transactionRef: txnRef,
+          googlePayOrderId: verifiedResult.orderId,
+          createdAt: new Date().toISOString(),
+          status: 'completed'
+        });
+
+        onCoinsUpdated(newBalance);
+        setSuccessMessage(`🎉 अभिनंदन! +${selectedPack.coins} कॉईन्स Google Pay द्वारे थेट जमा झाले आहेत!`);
+        setTimeout(() => {
+          onClose();
+        }, 2000);
+      } else if (verifiedResult.method === 'GOOGLE_PAY_APP') {
+        setGooglePayError(null);
+      }
+    } catch (err: any) {
+      setGooglePayError(err.message || 'Google Pay सुरू करताना अडचण आली.');
+    } finally {
+      setLoadingGooglePay(false);
+    }
+  };
+
+  // Google Pay UTR Manual Verification
+  const handleVerifyGooglePayUtr = async () => {
+    const cleanUtr = gpayUtrInput.trim().replace(/\s+/g, '');
+    if (!cleanUtr) {
+      setGpayUtrError('कृपया १२ अंकी UPI Ref / UTR टाका.');
+      return;
+    }
+    if (cleanUtr.length < 8 || cleanUtr.length > 22) {
+      setGpayUtrError('कृपया Google Pay पावतीतील वैध १२ अंकी UTR प्रविष्ट करा.');
+      return;
+    }
+
+    setGpayUtrError(null);
+    setIsVerifyingGpayUtr(true);
+
+    try {
+      const verifiedResult = await verifyGooglePayPayment({
+        orderId: `gpay_utr_${cleanUtr}`,
+        transactionRef: `REF_GPAY_${cleanUtr}`,
+        utrNumber: cleanUtr,
+        amount: selectedPack.price,
+        userId: currentUser.uid
+      });
+
+      if (!verifiedResult.success) {
+        throw new Error(verifiedResult.error || 'Google Pay UTR पडताळणी अयशस्वी.');
+      }
 
       const currentCoins = Number(currentUser.coins) || 0;
       const newBalance = currentCoins + selectedPack.coins;
       await updateDoc(doc(db, 'users', currentUser.uid), { coins: newBalance });
-      
-      await setDoc(doc(db, 'recharges', verifiedResult.paymentId), {
-        id: verifiedResult.paymentId,
+
+      await setDoc(doc(db, 'recharges', `gpay_${cleanUtr}`), {
+        id: `gpay_${cleanUtr}`,
         userId: currentUser.uid,
         packageId: selectedPack.id,
         inrPrice: selectedPack.price,
         coinsGranted: selectedPack.coins,
-        paymentMethod: 'RAZORPAY',
-        transactionRef: verifiedResult.paymentId,
-        razorpayOrderId: verifiedResult.orderId,
-        razorpayPaymentId: verifiedResult.paymentId,
+        paymentMethod: 'GOOGLE_PAY_UTR',
+        transactionRef: cleanUtr,
         createdAt: new Date().toISOString(),
         status: 'completed'
       });
 
       onCoinsUpdated(newBalance);
-      setSuccessMessage(`🎉 अभिनंदन! +${selectedPack.coins} कॉईन्स यशस्वीपणे जमा झाले आहेत!`);
+      setSuccessMessage(`🎉 अभिनंदन! +${selectedPack.coins} कॉईन्स जमा झाले आहेत!`);
+      setGpayUtrInput('');
       setTimeout(() => {
         onClose();
       }, 2000);
     } catch (err: any) {
-      setRazorpayError(err.message || 'Razorpay सुरू करताना अडचण आली.');
+      setGpayUtrError(err.message || 'पडताळणी अयशस्वी. कृपया UTR पुन्हा तपासा.');
     } finally {
-      setLoadingRazorpay(false);
+      setIsVerifyingGpayUtr(false);
     }
   };
 
@@ -229,7 +319,7 @@ export const BuyCoinsModal: React.FC<BuyCoinsModalProps> = ({
                 onClick={() => {
                   setSelectedPack(pack);
                   setUtrError(null);
-                  setRazorpayError(null);
+                  setGooglePayError(null);
                 }}
                 className={`relative p-2.5 rounded-2xl border text-left transition-all cursor-pointer ${
                   isSelected 
@@ -254,13 +344,36 @@ export const BuyCoinsModal: React.FC<BuyCoinsModalProps> = ({
           })}
         </div>
 
-        {/* Tabs: UPI vs Razorpay */}
+        {/* Tabs: Google Pay vs UPI */}
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => {
+              setPaymentTab('googlepay');
+              setUtrError(null);
+            }}
+            className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 text-xs font-bold ${
+              paymentTab === 'googlepay'
+                ? 'bg-blue-500/20 border-blue-400 text-blue-300 ring-1 ring-blue-400'
+                : 'bg-slate-800/40 border-slate-700 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <div className="w-4 h-4 shrink-0">
+              <svg viewBox="0 0 24 24" className="w-full h-full">
+                <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
+                <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+                <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 10.03 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+                <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+              </svg>
+            </div>
+            <span>Google Pay मर्चंट</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
               setPaymentTab('upi');
-              setRazorpayError(null);
+              setGooglePayError(null);
             }}
             className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 text-xs font-bold ${
               paymentTab === 'upi'
@@ -269,25 +382,146 @@ export const BuyCoinsModal: React.FC<BuyCoinsModalProps> = ({
             }`}
           >
             <QrCode className="w-3.5 h-3.5 text-amber-400" />
-            <span>थेट UPI / QR कोड</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setPaymentTab('razorpay');
-              setUtrError(null);
-            }}
-            className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 text-xs font-bold ${
-              paymentTab === 'razorpay'
-                ? 'bg-blue-500/20 border-blue-400 text-blue-300 ring-1 ring-blue-400'
-                : 'bg-slate-800/40 border-slate-700 text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <CreditCard className="w-3.5 h-3.5 text-blue-400" />
-            <span>Razorpay ऑनलाइन</span>
+            <span>इतर UPI / QR कोड</span>
           </button>
         </div>
+
+        {/* Google Pay Merchant Screen */}
+        {paymentTab === 'googlepay' && (
+          <div className="bg-slate-800/60 border border-blue-500/30 rounded-2xl p-3 space-y-3">
+            {/* Google Pay Verified Merchant Banner */}
+            <div className="flex items-center justify-between p-2.5 bg-gradient-to-r from-blue-950/60 via-slate-900 to-emerald-950/40 rounded-xl border border-blue-500/30">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-white p-1 flex items-center justify-center shadow-xs shrink-0">
+                  <svg viewBox="0 0 24 24" className="w-full h-full">
+                    <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
+                    <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+                    <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 10.03 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+                    <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+                  </svg>
+                </div>
+                <div>
+                  <div className="text-xs font-black text-white flex items-center gap-1.5">
+                    <span>{googlePayMerchantName || merchantName}</span>
+                    <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1 py-0.2 rounded border border-emerald-500/30">Verified</span>
+                  </div>
+                  <div className="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                    <span>VPA: <strong className="font-mono text-blue-300">{googlePayUpiId}</strong></span>
+                    <button
+                      type="button"
+                      onClick={handleCopyGpayUpi}
+                      className="text-[9px] text-blue-400 hover:text-blue-300 bg-blue-500/20 px-1 rounded flex items-center gap-0.5 cursor-pointer"
+                    >
+                      {copiedGpayUpi ? <Check className="w-2.5 h-2.5 text-emerald-400" /> : <Copy className="w-2.5 h-2.5" />}
+                      <span>{copiedGpayUpi ? 'झाले' : 'कॉपी'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions: GPay Web & Open App */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={loadingGooglePay}
+                onClick={handleGooglePayPurchase}
+                className="py-2.5 bg-white hover:bg-slate-100 text-slate-950 font-black text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
+              >
+                {loadingGooglePay ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                ) : (
+                  <div className="w-3.5 h-3.5 shrink-0">
+                    <svg viewBox="0 0 24 24" className="w-full h-full">
+                      <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
+                      <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+                      <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 10.03 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+                      <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+                    </svg>
+                  </div>
+                )}
+                <span>Pay ₹{selectedPack.price}</span>
+              </button>
+
+              <a
+                href={gpayTezUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>GPay ॲप उघडा</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+
+            {googlePayError && (
+              <div className="p-2 rounded-lg bg-red-950/60 border border-red-500/50 text-red-200 text-xs flex items-start gap-1.5">
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <span>{googlePayError}</span>
+              </div>
+            )}
+
+            {/* QR & UTR verification */}
+            <div className="flex items-center gap-3">
+              <div className="p-1.5 bg-white rounded-xl shadow-md border border-blue-400 shrink-0 relative">
+                <img 
+                  src={gpayQrCodeUrl} 
+                  alt="Google Pay QR Code" 
+                  className="w-24 h-24 rounded-md object-contain"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="w-6 h-6 rounded-full bg-white border border-blue-500 flex items-center justify-center p-0.5 shadow-md">
+                    <svg viewBox="0 0 24 24" className="w-full h-full">
+                      <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
+                      <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+                      <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 10.03 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+                      <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-1 flex-1 text-xs">
+                <label className="block text-[11px] font-bold text-slate-300">
+                  Google Pay पावतीतील १२ अंकी UTR टाका:
+                </label>
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    maxLength={22}
+                    value={gpayUtrInput}
+                    onChange={(e) => {
+                      setGpayUtrInput(e.target.value);
+                      setGpayUtrError(null);
+                    }}
+                    placeholder="उदा. 425612345678"
+                    className="flex-1 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white text-xs font-mono focus:border-blue-400 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    disabled={isVerifyingGpayUtr || !gpayUtrInput.trim()}
+                    onClick={handleVerifyGooglePayUtr}
+                    className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs rounded-lg transition-all disabled:opacity-50 flex items-center gap-1 cursor-pointer"
+                  >
+                    {isVerifyingGpayUtr ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                    )}
+                    <span>पडताळा</span>
+                  </button>
+                </div>
+                {gpayUtrError && (
+                  <div className="text-[11px] text-red-300 flex items-center gap-1 mt-1">
+                    <AlertCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                    <span>{gpayUtrError}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* UPI Screen */}
         {paymentTab === 'upi' && (
@@ -406,53 +640,6 @@ export const BuyCoinsModal: React.FC<BuyCoinsModalProps> = ({
                 </div>
               )}
             </div>
-          </div>
-        )}
-
-        {/* Razorpay Screen */}
-        {paymentTab === 'razorpay' && (
-          <div className="bg-slate-800/60 border border-blue-500/30 rounded-2xl p-3 space-y-2.5">
-            <div className="text-xs text-slate-300">
-              क्रेडिट / डेबिट कार्ड किंवा नेटबँकिंग द्वारे त्वरित पेमेंट करा.
-            </div>
-
-            {razorpayError && (
-              <div className="p-2 rounded-lg bg-red-950/60 border border-red-500/50 text-red-200 text-xs flex items-start gap-1.5">
-                <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                <div>
-                  <span>{razorpayError}</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPaymentTab('upi');
-                      setRazorpayError(null);
-                    }}
-                    className="block text-amber-400 font-bold underline mt-1"
-                  >
-                    थेट UPI पर्याय वापरा
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <button
-              type="button"
-              disabled={loadingRazorpay}
-              onClick={handleRazorpayPurchase}
-              className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
-            >
-              {loadingRazorpay ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>प्रक्रिया सुरू आहे...</span>
-                </>
-              ) : (
-                <>
-                  <CreditCard className="w-4 h-4" />
-                  <span>₹{selectedPack.price} चे ऑनलाइन पेमेंट करा</span>
-                </>
-              )}
-            </button>
           </div>
         )}
 

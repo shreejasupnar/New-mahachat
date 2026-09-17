@@ -23,12 +23,14 @@ import {
   runTransaction 
 } from 'firebase/firestore';
 import { MaharashtraVoiceGift } from '../data/voiceRoomAssets';
+import { getVipTier } from '../data/vipData';
 
 export interface SpeakerRequest {
   id: string;
   uid: string;
   displayName: string;
   photoURL: string;
+  vipLevel?: number;
   requestedSeat?: number | null;
   status: 'pending' | 'accepted' | 'rejected';
   createdAt: any;
@@ -68,24 +70,32 @@ class VoiceRoomService {
     profile: UserProfile,
     requestedSeat?: number | null
   ): Promise<{ success: boolean; error?: string }> {
+    if (!districtId || !profile || !profile.uid) {
+      console.warn('[requestSpeaker] Missing districtId or profile.uid');
+      return { success: false, error: 'वापरकर्ता किंवा रूम आयडी उपलब्ध नाही' };
+    }
+
     try {
+      const vipLvl = profile.vipLevel || 0;
       const reqRef = doc(db, 'districts', districtId, 'voiceRooms', 'active', 'speakerRequests', profile.uid);
       await setDoc(reqRef, {
         uid: profile.uid,
         displayName: profile.displayName || 'सदस्य',
         photoURL: profile.photoURL || '',
+        vipLevel: vipLvl,
         requestedSeat: requestedSeat ?? null,
         status: 'pending',
         createdAt: serverTimestamp()
       });
 
-      // Send in-room live event announcement
+      // Send in-room live event announcement with VIP badge if applicable
+      const vipLabel = vipLvl > 0 ? ` [VIP ${vipLvl}]` : '';
       await sendVoiceRoomLiveMessage(districtId, {
         type: 'system',
         senderId: profile.uid,
         senderName: profile.displayName || 'सदस्य',
         senderPhoto: profile.photoURL || '',
-        text: `✋ @${profile.displayName || 'सदस्य'} यांनी बोलण्यासाठी हात वर केला (Raised Hand)`
+        text: `✋ @${profile.displayName || 'सदस्य'}${vipLabel} यांनी बोलण्यासाठी हात वर केला (Raised Hand)`
       });
 
       return { success: true };
@@ -97,11 +107,17 @@ class VoiceRoomService {
 
   /**
    * Subscribe to real-time pending speaker requests (for Host / Moderators)
+   * Prioritizes high VIP level members at the top of the queue
    */
   public subscribeSpeakerRequests(
     districtId: string,
     callback: (requests: SpeakerRequest[]) => void
   ) {
+    if (!districtId) {
+      callback([]);
+      return () => {};
+    }
+
     const reqsCol = collection(db, 'districts', districtId, 'voiceRooms', 'active', 'speakerRequests');
     return onSnapshot(reqsCol, (snapshot) => {
       const list: SpeakerRequest[] = [];
@@ -113,12 +129,24 @@ class VoiceRoomService {
             uid: data.uid || docSnap.id,
             displayName: data.displayName || 'सदस्य',
             photoURL: data.photoURL || '',
+            vipLevel: Number(data.vipLevel) || 0,
             requestedSeat: data.requestedSeat,
             status: data.status,
             createdAt: data.createdAt
           });
         }
       });
+
+      // VIP Privilege: Higher VIP levels get mic priority at top of queue
+      list.sort((a, b) => {
+        const vipA = a.vipLevel || 0;
+        const vipB = b.vipLevel || 0;
+        if (vipB !== vipA) {
+          return vipB - vipA;
+        }
+        return 0;
+      });
+
       callback(list);
     }, (err) => {
       console.warn('Speaker requests listener error:', err);
@@ -135,6 +163,8 @@ class VoiceRoomService {
     targetSeatIndex: number,
     hostName: string
   ): Promise<boolean> {
+    if (!districtId || !request || !request.uid) return false;
+
     try {
       // 1. Mark request accepted
       const reqRef = doc(db, 'districts', districtId, 'voiceRooms', 'active', 'speakerRequests', request.uid);
@@ -144,7 +174,8 @@ class VoiceRoomService {
       await takeVoiceSeat(districtId, request.uid, targetSeatIndex, {
         uid: request.uid,
         displayName: request.displayName,
-        photoURL: request.photoURL
+        photoURL: request.photoURL,
+        vipLevel: request.vipLevel || 0
       } as any);
 
       // 3. Broadcast system message
@@ -176,6 +207,8 @@ class VoiceRoomService {
     districtId: string,
     requestUid: string
   ): Promise<boolean> {
+    if (!districtId || !requestUid) return false;
+
     try {
       const reqRef = doc(db, 'districts', districtId, 'voiceRooms', 'active', 'speakerRequests', requestUid);
       await setDoc(reqRef, { status: 'rejected' }, { merge: true });
@@ -201,6 +234,8 @@ class VoiceRoomService {
     hostName: string,
     targetName: string
   ): Promise<boolean> {
+    if (!districtId || !targetUid) return false;
+
     try {
       const partRef = doc(db, 'districts', districtId, 'voiceRooms', 'active', 'participants', targetUid);
       await setDoc(partRef, {
@@ -234,6 +269,8 @@ class VoiceRoomService {
     hostName: string,
     targetName: string
   ): Promise<boolean> {
+    if (!districtId || !targetUid) return false;
+
     try {
       await leaveVoiceSeat(districtId, targetUid);
       await sendVoiceRoomLiveMessage(districtId, {
@@ -259,6 +296,8 @@ class VoiceRoomService {
     hostName: string,
     targetName: string
   ): Promise<boolean> {
+    if (!districtId || !targetUid) return false;
+
     try {
       const banRef = doc(db, 'districts', districtId, 'voiceRooms', 'active', 'bans', targetUid);
       await setDoc(banRef, {
@@ -291,6 +330,8 @@ class VoiceRoomService {
    * Unban user
    */
   public async unbanUser(districtId: string, targetUid: string): Promise<boolean> {
+    if (!districtId || !targetUid) return false;
+
     try {
       const banRef = doc(db, 'districts', districtId, 'voiceRooms', 'active', 'bans', targetUid);
       await deleteDoc(banRef);
@@ -304,6 +345,8 @@ class VoiceRoomService {
    * Check if user is banned
    */
   public async checkIsBanned(districtId: string, uid: string): Promise<boolean> {
+    if (!districtId || !uid) return false;
+
     try {
       const banRef = doc(db, 'districts', districtId, 'voiceRooms', 'active', 'bans', uid);
       const snap = await getDoc(banRef);
@@ -314,7 +357,7 @@ class VoiceRoomService {
   }
 
   /**
-   * Send Maharashtra Voice Gift with real coin deduction and atomic transaction
+   * Send Maharashtra Voice Gift with real coin deduction, atomic transaction, and VIP Charm Multiplier
    */
   public async sendGiftWithCoins(
     districtId: string,
@@ -325,7 +368,14 @@ class VoiceRoomService {
     gift: MaharashtraVoiceGift,
     comboMultiplier: number = 1
   ): Promise<{ success: boolean; newBalance?: number; error?: string }> {
+    if (!districtId || !sender?.uid || !recipientUid) {
+      return { success: false, error: 'अवैध भेटवस्तू विनंती.' };
+    }
+
     const totalCost = gift.coinCost * comboMultiplier;
+    const vipLevel = sender.vipLevel || 0;
+    const vipTier = vipLevel > 0 ? getVipTier(vipLevel) : null;
+    const charmMultiplier = vipTier ? vipTier.charmMultiplier : 1.0;
 
     try {
       const userRef = doc(db, 'users', sender.uid);
@@ -333,10 +383,10 @@ class VoiceRoomService {
       // Atomic transaction: verify sufficient coins and deduct
       const result = await runTransaction(db, async (transaction) => {
         const userDoc = await transaction.get(userRef);
-        const currentCoins = Number(userDoc.data()?.coins) || 0; // Strict: Coins must be acquired via Razorpay purchase
+        const currentCoins = Number(userDoc.data()?.coins) || 0;
 
         if (currentCoins < totalCost) {
-          throw new Error(`कमी कॉईन्स आहेत! (Need ${totalCost}, have ${currentCoins})`);
+          throw new Error(`कमी कॉईन्स आहेत! (हवे: ${totalCost}, शिल्लक: ${currentCoins})`);
         }
 
         const newBalance = currentCoins - totalCost;
@@ -355,13 +405,19 @@ class VoiceRoomService {
         senderId: sender.uid,
         senderName: sender.displayName || 'सदस्य',
         senderPhoto: sender.photoURL || '',
+        senderVipLevel: vipLevel,
         recipientId: recipientUid,
         recipientName: recipientName,
         recipientPhoto: recipientPhoto,
         cost: totalCost,
         multiplier: comboMultiplier,
+        charmMultiplier,
         createdAt: serverTimestamp()
       });
+
+      // Format VIP live message description
+      const vipBonusTag = charmMultiplier > 1 ? ` (✨ ${charmMultiplier}x VIP चार्म बोनस)` : '';
+      const senderVipTag = vipLevel > 0 ? ` [VIP ${vipLevel}]` : '';
 
       // Add live room stream message
       await sendVoiceRoomLiveMessage(districtId, {
@@ -369,7 +425,7 @@ class VoiceRoomService {
         senderId: sender.uid,
         senderName: sender.displayName || 'सदस्य',
         senderPhoto: sender.photoURL || '',
-        text: `🎁 @${sender.displayName || 'सदस्य'} यांनी @${recipientName} यांना ${gift.icon} ${gift.nameMr} ${comboMultiplier > 1 ? `(x${comboMultiplier})` : ''} पाठवले!`,
+        text: `🎁 @${sender.displayName || 'सदस्य'}${senderVipTag} यांनी @${recipientName} यांना ${gift.icon} ${gift.nameMr} ${comboMultiplier > 1 ? `(x${comboMultiplier})` : ''} पाठवले!${vipBonusTag}`,
         giftIcon: gift.icon,
         giftName: gift.nameMr,
         giftMultiplier: comboMultiplier,
