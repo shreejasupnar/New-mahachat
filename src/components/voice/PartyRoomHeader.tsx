@@ -177,14 +177,14 @@ export const PartyRoomHeader: React.FC<PartyRoomHeaderProps> = ({
         </div>
       </div>
 
-      {/* Trophy / Level Badge Row + Agora RTC Engine Status */}
+      {/* Trophy / Level Badge Row + Voice Engine Status */}
       <div className="max-w-md mx-auto w-full px-1 mt-1 flex items-center justify-between">
         <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/30 backdrop-blur-xs border border-yellow-500/30 text-yellow-300 text-[10px] font-bold shadow-xs">
           <span>🏆</span>
           <span>8 &gt;</span>
         </div>
 
-        {/* Agora RTC Engine Status Indicator */}
+        {/* Voice RTC Engine Status Indicator */}
         <button
           type="button"
           onClick={onOpenAdminDashboard}
@@ -196,7 +196,7 @@ export const PartyRoomHeader: React.FC<PartyRoomHeaderProps> = ({
           title="कट्टा व्हॉईस नेटवर्क व टेलिमेट्री डॅशबोर्ड"
         >
           <span className={`w-1.5 h-1.5 rounded-full ${isAgoraLive ? 'bg-emerald-400 animate-ping' : 'bg-indigo-400'}`} />
-          <span>{isAgoraLive ? '⚡ Agora RTC Live' : '🎙️ HD Audio'}</span>
+          <span>{isAgoraLive ? '⚡ लाइव्ह व्हॉईस' : '🎙️ HD Audio'}</span>
         </button>
       </div>
     </div>

@@ -139,13 +139,13 @@ async function startServer() {
         role: requestedRole,
         isLive: false,
         notice:
-          "Running in local voice fidelity mode. Set AGORA_APP_ID & AGORA_APP_CERTIFICATE in Settings to enable live Agora Cloud RTC transport.",
+          "Running in local voice fidelity mode.",
       });
     } catch (err: any) {
-      console.error("Error generating Agora token:", err);
+      console.error("Error generating voice token:", err);
       return res.status(500).json({
         success: false,
-        error: err.message || "Failed to generate Agora token",
+        error: err.message || "Failed to generate voice token",
       });
     }
   });

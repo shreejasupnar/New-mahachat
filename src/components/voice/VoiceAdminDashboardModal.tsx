@@ -79,19 +79,19 @@ export const VoiceAdminDashboardModal: React.FC<VoiceAdminDashboardModalProps> =
 
         {activeTab === 'metrics' ? (
           <div className="space-y-3">
-            {/* Agora Engine Health Card */}
+            {/* Real-Time Voice Engine Health Card */}
             <div className="p-3 rounded-2xl bg-slate-800/50 border border-slate-700/60 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className={`w-3 h-3 rounded-full ${isLiveAgora ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`} />
                 <div>
                   <div className="text-xs font-bold text-white flex items-center gap-1.5">
                     <Radio className="w-3.5 h-3.5 text-purple-400" />
-                    <span>Agora RTC Real-Time Voice Engine</span>
+                    <span>रिअल-टाइम व्हॉईस इंजिन (Voice Engine)</span>
                   </div>
                   <div className="text-[10px] text-slate-400">
                     {isLiveAgora 
                       ? 'क्लाउड RTC द्वारे सर्व १० सीट्स कनेक्टेड आहेत.' 
-                      : 'स्थानिक ऑडिओ फिडेलिटी मोड (AGORA_APP_ID सेट केल्यास लाइव्ह क्लाउड होईल)'}
+                      : 'स्थानिक ऑडिओ फिडेलिटी मोड (क्लाउड ऑडिओ क्रेडेंशियल्स उपलब्ध झाल्यावर लाइव्ह होईल)'}
                   </div>
                 </div>
               </div>
@@ -128,7 +128,7 @@ export const VoiceAdminDashboardModal: React.FC<VoiceAdminDashboardModalProps> =
             <div className="p-3 rounded-2xl bg-amber-950/20 border border-amber-500/30 text-[11px] text-amber-200/90 leading-relaxed space-y-1">
               <p className="font-bold flex items-center gap-1 text-amber-300">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>१०-सीट स्टारमेकर स्टाईल लेआउट:</span>
+                <span>१०-सीट कट्टा स्टेज लेआउट:</span>
               </p>
               <p>
                 पहिल्या ओळीत ५ सीट्स आणि दुसऱ्या ओळीत ५ सीट्स (एकूण १० सीट्स). प्रत्येक सीटवर बोलणाऱ्या व्यक्तीचा व्हॉईस इंडिकेटर (लहर) लाइव्ह आवाजाच्या तीव्रतेनुसार हालचाल करतो.

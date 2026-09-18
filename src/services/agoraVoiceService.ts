@@ -337,7 +337,7 @@ class AgoraVoiceService {
           return { success: true, isLive: true };
         } catch (err: any) {
           // Graceful fallback to high-fidelity audio mode
-          console.warn('Agora Live RTC fallback to local high-fidelity mode:', err?.message || err);
+          console.warn('Live RTC fallback to local high-fidelity mode:', err?.message || err);
           this.isLiveRTC = false;
           
           try {
@@ -346,7 +346,7 @@ class AgoraVoiceService {
             }
           } catch {}
 
-          return { success: true, isLive: false, error: err?.message || 'Agora join fallback' };
+          return { success: true, isLive: false, error: err?.message || 'Voice join fallback' };
         }
       } else {
         // Local Fidelity Mode (when Agora credentials haven't been provided in Settings yet)
