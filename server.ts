@@ -5,6 +5,19 @@ import dotenv from "dotenv";
 import crypto from "crypto";
 import agoraTokenPkg from "agora-token";
 import { getAgoraNumericUid } from "./src/lib/agoraUtils";
+import {
+  getCatalogGifts,
+  getGiftById,
+  adminUpdateGift,
+  getUserWallet,
+  syncUserBalance,
+  executeSendGift,
+  executeCreditPurchase,
+  getTransactions,
+  getMarketCategoryRates,
+  setMarketRegimeMode,
+  setCategoryFluctuation
+} from "./server/walletBackend";
 
 dotenv.config();
 
@@ -311,6 +324,216 @@ async function startServer() {
         success: false,
         error: err.message || "UPI पडताळणी करताना अडचण आली"
       });
+    }
+  });
+
+  // ==========================================
+  // VIRTUAL GIFT & COIN WALLET SECURE API
+  // ==========================================
+
+  // Public/Active Gift Catalog
+  app.get("/api/gifts", (req, res) => {
+    try {
+      const gifts = getCatalogGifts(false);
+      res.json({ success: true, gifts });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Live Market Rates & Category Fluctuations Info
+  app.get("/api/gifts/market-rates", (req, res) => {
+    try {
+      const data = getMarketCategoryRates();
+      res.json({ success: true, ...data });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Admin Toggle Market Regime or Category Fluctuation
+  app.post("/api/admin/gifts/market-regime", (req, res) => {
+    try {
+      const { mode, category, percent } = req.body;
+      let data;
+      if (mode) {
+        data = setMarketRegimeMode(mode);
+      } else if (category && percent !== undefined) {
+        data = setCategoryFluctuation(category, Number(percent));
+      } else {
+        data = getMarketCategoryRates();
+      }
+      res.json({ success: true, ...data });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Admin Gift Catalog (includes active & inactive)
+  app.get("/api/admin/gifts", (req, res) => {
+    try {
+      const gifts = getCatalogGifts(true);
+      res.json({ success: true, gifts });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Admin Update/Add Gift
+  app.post("/api/admin/gifts", (req, res) => {
+    try {
+      const { giftId, coinPrice, active, nameMr, nameEn, culturalTheme, previewIcon, animation } = req.body;
+      if (!giftId) {
+        return res.status(400).json({ success: false, error: "giftId is required" });
+      }
+      const updated = adminUpdateGift(giftId, {
+        coinPrice,
+        active,
+        nameMr,
+        nameEn,
+        culturalTheme,
+        previewIcon,
+        animation
+      });
+      res.json({ success: true, gift: updated });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Secure Server-Side Gift Sending Endpoint
+  app.post("/api/wallet/send-gift", (req, res) => {
+    try {
+      const {
+        senderUid,
+        senderName,
+        senderPhoto,
+        districtId,
+        roomId,
+        giftId,
+        multiplier,
+        recipientUids,
+        recipientNames,
+        recipientPhotos,
+        knownBalance
+      } = req.body;
+
+      if (!senderUid) {
+        return res.status(401).json({ success: false, error: "कृपया प्रथम लॉगिन करा." });
+      }
+
+      if (!giftId) {
+        return res.status(400).json({ success: false, error: "कृपया गिफ्ट निवडा." });
+      }
+
+      if (!recipientUids || !Array.isArray(recipientUids) || recipientUids.length === 0) {
+        return res.status(400).json({ success: false, error: "कृपया प्राप्तकर्ता सदस्य निवडा." });
+      }
+
+      const result = executeSendGift({
+        senderUid,
+        senderName,
+        senderPhoto,
+        districtId: districtId || "maharashtra",
+        roomId: roomId || "active",
+        giftId,
+        multiplier: Number(multiplier) || 1,
+        recipientUids,
+        recipientNames: recipientNames || {},
+        recipientPhotos: recipientPhotos || {},
+        knownBalance: knownBalance !== undefined ? Number(knownBalance) : undefined
+      });
+
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+
+      return res.json(result);
+    } catch (err: any) {
+      console.error("Error in /api/wallet/send-gift:", err);
+      return res.status(500).json({
+        success: false,
+        error: err.message || "भेट पाठवताना सर्व्हर त्रुटी आली."
+      });
+    }
+  });
+
+  // Credit coin purchase to wallet & ledger
+  app.post("/api/wallet/credit-purchase", (req, res) => {
+    try {
+      const { userId, coinsToAdd, inrPrice, packageId, paymentMethod, transactionRef } = req.body;
+
+      if (!userId || !coinsToAdd) {
+        return res.status(400).json({ success: false, error: "userId and coinsToAdd are required" });
+      }
+
+      const result = executeCreditPurchase(
+        userId,
+        Number(coinsToAdd),
+        Number(inrPrice) || 0,
+        packageId || "coins",
+        paymentMethod || "GOOGLE_PAY",
+        transactionRef
+      );
+
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Get User Wallet Balance & Stats
+  app.get("/api/wallet/balance", (req, res) => {
+    try {
+      const userId = String(req.query.userId || "");
+      const knownCoins = req.query.knownCoins ? Number(req.query.knownCoins) : undefined;
+      if (!userId) {
+        return res.status(400).json({ success: false, error: "userId is required" });
+      }
+      const wallet = getUserWallet(userId, knownCoins);
+      res.json({ success: true, wallet });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Sync Balance from Firestore
+  app.post("/api/wallet/sync-balance", (req, res) => {
+    try {
+      const { userId, coins } = req.body;
+      if (!userId) {
+        return res.status(400).json({ success: false, error: "userId is required" });
+      }
+      const wallet = syncUserBalance(userId, Number(coins) || 0);
+      res.json({ success: true, wallet });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Get Transaction Ledger History for User
+  app.get("/api/wallet/transactions", (req, res) => {
+    try {
+      const userId = String(req.query.userId || "");
+      const limit = Number(req.query.limit) || 30;
+      if (!userId) {
+        return res.status(400).json({ success: false, error: "userId is required" });
+      }
+      const transactions = getTransactions(userId, limit);
+      res.json({ success: true, transactions });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Admin Transaction Ledger
+  app.get("/api/admin/transactions", (req, res) => {
+    try {
+      const limit = Number(req.query.limit) || 50;
+      const transactions = getTransactions(undefined, limit);
+      res.json({ success: true, transactions });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
     }
   });
 

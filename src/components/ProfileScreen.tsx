@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { UserProfile, saveUserProfile, signOutUser, unblockUser } from '../lib/firebase';
+import React, { useState, useEffect } from 'react';
+import { UserProfile, saveUserProfile, signOutUser, unblockUser, subscribeToFriends, FriendItem } from '../lib/firebase';
 import { MAHARASHTRA_DISTRICTS } from '../data/districts';
 import { DistrictIcon } from './DistrictIcon';
 import { 
@@ -19,11 +19,20 @@ import {
   Ban,
   Crown,
   Coins,
-  Sparkles
+  Sparkles,
+  Users,
+  Lock,
+  Globe,
+  History,
+  Gift
 } from 'lucide-react';
 import { VipBadge } from './vip/VipBadge';
 import { RechargeModal } from './vip/RechargeModal';
 import { calculateVipStatus } from '../data/vipData';
+import { PrivacySettingsModal } from './profile/PrivacySettingsModal';
+import { FriendsListModal } from './profile/FriendsListModal';
+import { TransactionHistoryModal } from './wallet/TransactionHistoryModal';
+import { AdminGiftManagerModal } from './admin/AdminGiftManagerModal';
 
 interface ProfileScreenProps {
   profile: UserProfile | null;
@@ -52,6 +61,19 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [showBlockedModal, setShowBlockedModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showRechargeModal, setShowRechargeModal] = useState(false);
+  const [showFriendsModal, setShowFriendsModal] = useState(false);
+  const [showPrivacySettingsModal, setShowPrivacySettingsModal] = useState(false);
+  const [showLedgerModal, setShowLedgerModal] = useState(false);
+  const [showAdminGiftModal, setShowAdminGiftModal] = useState(false);
+  const [friends, setFriends] = useState<FriendItem[]>([]);
+
+  useEffect(() => {
+    if (!profile?.uid) return;
+    const unsub = subscribeToFriends(profile.uid, (list) => {
+      setFriends(list);
+    });
+    return () => unsub();
+  }, [profile?.uid]);
 
   // Edit states
   const [displayName, setDisplayName] = useState(profile?.displayName || '');
@@ -176,6 +198,64 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               "{profile.bio}"
             </p>
           )}
+
+          {/* Friends & Privacy Status Quick Bar */}
+          <div className="mt-4 pt-3.5 border-t border-slate-100 w-full flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => setShowFriendsModal(true)}
+              className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-blue-50/80 hover:bg-blue-100 border border-blue-200/70 text-blue-800 transition-all cursor-pointer active:scale-95 group shadow-2xs"
+              title="माझे सर्व मित्र पहा"
+            >
+              <div className="flex -space-x-1.5 overflow-hidden shrink-0">
+                {friends.slice(0, 3).map((f) => (
+                  <div key={f.friendId} className="w-5 h-5 rounded-full ring-2 ring-white overflow-hidden bg-slate-200">
+                    {f.friendPhoto ? (
+                      <img src={f.friendPhoto} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <span className="w-full h-full bg-blue-500 text-[8px] text-white flex items-center justify-center font-black">
+                        {f.friendName?.slice(0, 1) || 'U'}
+                      </span>
+                    )}
+                  </div>
+                ))}
+                {friends.length === 0 && (
+                  <div className="w-5 h-5 rounded-full bg-blue-200 text-blue-700 flex items-center justify-center">
+                    <Users className="w-3 h-3" />
+                  </div>
+                )}
+              </div>
+              <span className="text-xs font-black">
+                {friends.length} मित्र (Friends)
+              </span>
+              <ChevronRight className="w-3.5 h-3.5 text-blue-600 group-hover:translate-x-0.5 transition-transform" />
+            </button>
+
+            {/* Privacy Setting Badge Button */}
+            <button
+              type="button"
+              onClick={() => setShowPrivacySettingsModal(true)}
+              className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/80 transition-all cursor-pointer shadow-2xs"
+              title="गोपनीयता सेटिंग्ज बदला"
+            >
+              {profile?.hideFriendsList ? (
+                <>
+                  <Lock className="w-3 h-3 text-amber-600" />
+                  <span className="text-amber-700 font-black">मित्र गुप्त</span>
+                </>
+              ) : profile?.isProfilePrivate ? (
+                <>
+                  <Lock className="w-3 h-3 text-purple-600" />
+                  <span className="text-purple-700 font-black">खाजगी</span>
+                </>
+              ) : (
+                <>
+                  <Globe className="w-3 h-3 text-emerald-600" />
+                  <span className="text-emerald-700 font-black">सार्वजनिक</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* VIP Membership & Coins Wallet Card */}
@@ -263,14 +343,28 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 <span className="text-[10px] text-yellow-200">Coins</span>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setShowRechargeModal(true)}
-                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-stone-950 text-xs font-black shadow-md shadow-amber-500/20 active:scale-95 transition-all cursor-pointer flex items-center gap-1"
-              >
-                <Coins className="w-3.5 h-3.5" />
-                <span>रिचार्ज करा</span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  id="profile-wallet-history-btn"
+                  onClick={() => setShowLedgerModal(true)}
+                  className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-amber-200 text-xs font-bold border border-white/15 active:scale-95 transition-all cursor-pointer flex items-center gap-1"
+                  title="व्यवहार नोंदवही (Ledger)"
+                >
+                  <History className="w-3.5 h-3.5 text-amber-400" />
+                  <span>इतिहास</span>
+                </button>
+
+                <button
+                  type="button"
+                  id="profile-recharge-btn"
+                  onClick={() => setShowRechargeModal(true)}
+                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-stone-950 text-xs font-black shadow-md shadow-amber-500/20 active:scale-95 transition-all cursor-pointer flex items-center gap-1"
+                >
+                  <Coins className="w-3.5 h-3.5" />
+                  <span>रिचार्ज करा</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -314,6 +408,34 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             </div>
           </button>
 
+          {/* माझे मित्र (My Friends) */}
+          <button
+            id="profile-friends-button"
+            type="button"
+            onClick={() => setShowFriendsModal(true)}
+            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-slate-50/80 active:scale-[0.99] transition-all rounded-2xl cursor-pointer group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform shadow-2xs border border-blue-100">
+                <Users className="w-5 h-5" />
+              </div>
+              <div className="text-left">
+                <span className="font-bold text-slate-800 text-sm group-hover:text-blue-600 transition-colors block">
+                  माझे मित्र (Friends)
+                </span>
+                <span className="text-[11px] text-slate-400 font-medium block">
+                  तुमच्याशी जोडलेले मित्र व यादी
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-blue-700 font-black bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
+                {friends.length} मित्र
+              </span>
+              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+            </div>
+          </button>
+
           {/* नोटिफिकेशन्स */}
           <button
             id="profile-notifications-button"
@@ -333,20 +455,34 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             </div>
           </button>
 
-          {/* सेटिंग्ज */}
+          {/* सेटिंग्ज व गोपनीयता (Settings & Privacy) */}
           <button
             id="profile-settings-button"
             type="button"
-            onClick={() => alert('सेटिंग्ज: भाषा मराठी + इंग्रजी निवडलेली आहे. सुरक्षित संवाद नियम लागू आहेत.')}
+            onClick={() => setShowPrivacySettingsModal(true)}
             className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-slate-50/80 active:scale-[0.99] transition-all rounded-2xl cursor-pointer group"
           >
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center group-hover:scale-105 transition-transform shadow-2xs border border-slate-200">
                 <Settings className="w-5 h-5" />
               </div>
-              <span className="font-bold text-slate-800 text-sm group-hover:text-slate-900 transition-colors">सेटिंग्ज</span>
+              <div className="text-left">
+                <span className="font-bold text-slate-800 text-sm group-hover:text-slate-900 transition-colors block">
+                  सेटिंग्ज व गोपनीयता (Settings)
+                </span>
+                <span className="text-[11px] text-slate-400 font-medium block">
+                  {profile?.hideFriendsList ? 'मित्र यादी गुप्त ठेवली आहे' : profile?.isProfilePrivate ? 'खाजगी प्रोफाइल सक्रिय' : 'मित्र गोपनीयता व प्रोफाइल सेटिंग्ज'}
+                </span>
+              </div>
             </div>
-            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+            <div className="flex items-center gap-2">
+              {profile?.hideFriendsList && (
+                <span className="text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 flex items-center gap-1">
+                  <Lock className="w-2.5 h-2.5" /> गुप्त
+                </span>
+              )}
+              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+            </div>
           </button>
 
           {/* मदत व समर्थन */}
@@ -381,6 +517,62 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-400">
                 {profile?.blockedUsers?.length || 0}
+              </span>
+              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+            </div>
+          </button>
+
+          {/* कॉइन वॉलेट व व्यवहार नोंदवही (Coins & Ledger) */}
+          <button
+            id="profile-wallet-ledger-menu-button"
+            type="button"
+            onClick={() => setShowLedgerModal(true)}
+            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-slate-50/80 active:scale-[0.99] transition-all rounded-2xl cursor-pointer group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-105 transition-transform shadow-2xs border border-amber-100">
+                <History className="w-5 h-5" />
+              </div>
+              <div className="text-left">
+                <span className="font-bold text-slate-800 text-sm group-hover:text-amber-600 transition-colors block">
+                  कॉइन पाकीट व व्यवहार नोंदवही
+                </span>
+                <span className="text-[11px] text-slate-400 font-medium block">
+                  सर्व रिचार्ज, गिफ्ट्स व कॉइन शिल्लक इतिहास
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-amber-700 font-black bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                🪙 {(profile?.coins || 0).toLocaleString()}
+              </span>
+              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+            </div>
+          </button>
+
+          {/* गिफ्ट कॅटलॉग व्यवस्थापन (Admin Console) */}
+          <button
+            id="profile-admin-gift-menu-button"
+            type="button"
+            onClick={() => setShowAdminGiftModal(true)}
+            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-slate-50/80 active:scale-[0.99] transition-all rounded-2xl cursor-pointer group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-105 transition-transform shadow-2xs border border-purple-100">
+                <Gift className="w-5 h-5" />
+              </div>
+              <div className="text-left">
+                <span className="font-bold text-slate-800 text-sm group-hover:text-purple-600 transition-colors block">
+                  गिफ्ट कॅटलॉग व्यवस्थापन (Admin)
+                </span>
+                <span className="text-[11px] text-slate-400 font-medium block">
+                  कॅटलॉग दर, नवीन भेटवस्तू व ग्लोबल ऑडिट
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-purple-700 font-bold bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
+                व्यवस्थापक
               </span>
               <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
             </div>
@@ -573,6 +765,25 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         </div>
       )}
 
+      {/* Friends List Modal */}
+      {showFriendsModal && profile && (
+        <FriendsListModal
+          isOpen={showFriendsModal}
+          targetUser={profile}
+          currentUserProfile={profile}
+          onClose={() => setShowFriendsModal(false)}
+        />
+      )}
+
+      {/* Privacy Settings Modal */}
+      {showPrivacySettingsModal && profile && (
+        <PrivacySettingsModal
+          isOpen={showPrivacySettingsModal}
+          profile={profile}
+          onClose={() => setShowPrivacySettingsModal(false)}
+        />
+      )}
+
       {/* Recharge Modal */}
       {profile && (
         <RechargeModal
@@ -580,6 +791,28 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           currentUser={profile}
           onClose={() => setShowRechargeModal(false)}
           onOpenVipCenter={onOpenVipCenter}
+        />
+      )}
+
+      {/* Transaction History Ledger Modal */}
+      {profile && showLedgerModal && (
+        <TransactionHistoryModal
+          isOpen={showLedgerModal}
+          currentUser={profile}
+          onClose={() => setShowLedgerModal(false)}
+          onOpenRecharge={() => {
+            setShowLedgerModal(false);
+            setShowRechargeModal(true);
+          }}
+        />
+      )}
+
+      {/* Admin Gift Catalog Manager Modal */}
+      {profile && showAdminGiftModal && (
+        <AdminGiftManagerModal
+          isOpen={showAdminGiftModal}
+          currentUserUid={profile.uid}
+          onClose={() => setShowAdminGiftModal(false)}
         />
       )}
     </div>

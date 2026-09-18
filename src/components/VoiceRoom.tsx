@@ -37,6 +37,7 @@ import { SpeakerRequestsModal } from './voice/SpeakerRequestsModal';
 import { HostControlsBottomSheet } from './voice/HostControlsBottomSheet';
 import { UserActionModal } from './voice/UserActionModal';
 import { ReportUserModal } from './voice/ReportUserModal';
+import { UserProfileCardModal } from './profile/UserProfileCardModal';
 import { VoiceAdminDashboardModal } from './voice/VoiceAdminDashboardModal';
 import { BuyCoinsModal } from './voice/BuyCoinsModal';
 import { CULTURAL_ROOM_THEMES } from '../data/voiceRoomAssets';
@@ -132,6 +133,7 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
   const [showHostControlsSheet, setShowHostControlsSheet] = useState(false);
   const [showUserActionModal, setShowUserActionModal] = useState(false);
   const [selectedUserForAction, setSelectedUserForAction] = useState<VoiceParticipant | null>(null);
+  const [selectedFullProfileUser, setSelectedFullProfileUser] = useState<VoiceParticipant | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [targetReportUser, setTargetReportUser] = useState<VoiceParticipant | null>(null);
   const [showVoiceAdminModal, setShowVoiceAdminModal] = useState(false);
@@ -1147,10 +1149,11 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
         />
       )}
 
-      {/* User Action Modal (Interactive profile, gifting, mod controls, reporting) */}
+      {/* User Action Modal (Interactive profile, gifting, mod controls, reporting, friends) */}
       {showUserActionModal && selectedUserForAction && (
         <UserActionModal
           user={selectedUserForAction}
+          currentUserProfile={currentUserProfile}
           isCurrentUserHost={isHost}
           isCurrentUserMod={isHostOrMod}
           isSelf={selectedUserForAction.uid === currentUserProfile?.uid}
@@ -1162,6 +1165,10 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
           onToggleRemoteMute={(u) => handleRemoteMuteUser(u)}
           onKickFromSeat={(u) => handleKickUser(u)}
           onBanUser={(u) => handleBanUser(u)}
+          onViewFullProfile={(u) => {
+            setShowUserActionModal(false);
+            setSelectedFullProfileUser(u);
+          }}
           onReportUser={(u) => {
             setTargetReportUser(u);
             setShowUserActionModal(false);
@@ -1170,6 +1177,31 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
           onClose={() => {
             setShowUserActionModal(false);
             setSelectedUserForAction(null);
+          }}
+        />
+      )}
+
+      {/* Target User Full Profile & Friends Modal */}
+      {selectedFullProfileUser && (
+        <UserProfileCardModal
+          isOpen={Boolean(selectedFullProfileUser)}
+          targetUserId={selectedFullProfileUser.uid}
+          targetInitialData={{
+            displayName: selectedFullProfileUser.displayName,
+            photoURL: selectedFullProfileUser.photoURL,
+            vipLevel: selectedFullProfileUser.vipLevel || 0
+          }}
+          currentUserProfile={currentUserProfile}
+          onClose={() => setSelectedFullProfileUser(null)}
+          onSendGift={() => {
+            setTargetGiftRecipientUid(selectedFullProfileUser.uid);
+            setSelectedFullProfileUser(null);
+            setShowGiftModal(true);
+          }}
+          onReport={() => {
+            setTargetReportUser(selectedFullProfileUser);
+            setSelectedFullProfileUser(null);
+            setShowReportModal(true);
           }}
         />
       )}

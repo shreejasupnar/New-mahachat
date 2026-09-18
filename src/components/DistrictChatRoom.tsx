@@ -26,6 +26,7 @@ import { GiftModal } from './premium/GiftModal';
 import { GiftOverlay } from './premium/GiftOverlay';
 import { EntryEffectOverlay } from './premium/EntryEffectOverlay';
 import { DistrictIcon } from './DistrictIcon';
+import { UserProfileCardModal } from './profile/UserProfileCardModal';
 import { 
   ArrowLeft, 
   Send, 
@@ -83,6 +84,13 @@ export const DistrictChatRoom: React.FC<DistrictChatRoomProps> = ({
   const [selectedMessageForReport, setSelectedMessageForReport] = useState<ChatMessage | null>(null);
   const [reportReason, setReportReason] = useState('');
   const [reportSuccess, setReportSuccess] = useState(false);
+  const [selectedProfileUser, setSelectedProfileUser] = useState<{
+    uid: string;
+    displayName: string;
+    photoURL?: string;
+    district?: string;
+    vipLevel?: number;
+  } | null>(null);
   const [lastSentTime, setLastSentTime] = useState(0);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -560,9 +568,15 @@ export const DistrictChatRoom: React.FC<DistrictChatRoomProps> = ({
                 {/* Other User Avatar */}
                 {!isMe && (
                   <div 
-                    onClick={() => handleBlockSender(msg.senderId)}
-                    title={`${senderDisplayName} (क्लिक करून पर्याय पहा)`}
-                    className="w-8 h-8 rounded-full overflow-hidden bg-slate-200 shrink-0 mb-1 ring-1 ring-slate-300 cursor-pointer shadow-2xs"
+                    onClick={() => setSelectedProfileUser({
+                      uid: msg.senderId,
+                      displayName: senderDisplayName,
+                      photoURL: msg.senderPhoto,
+                      district: msg.senderDistrict,
+                      vipLevel: msg.senderVipLevel
+                    })}
+                    title={`${senderDisplayName} (प्रोफाइल व मित्र पहा)`}
+                    className="w-8 h-8 rounded-full overflow-hidden bg-slate-200 shrink-0 mb-1 ring-1 ring-slate-300 cursor-pointer shadow-2xs hover:scale-105 transition-transform"
                   >
                     {msg.senderPhoto ? (
                       <img src={msg.senderPhoto} alt={senderDisplayName} className="w-full h-full object-cover" />
@@ -596,7 +610,18 @@ export const DistrictChatRoom: React.FC<DistrictChatRoomProps> = ({
                   >
                     <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                       <span
-                        className={`font-black text-xs truncate ${
+                        onClick={() => {
+                          if (!isMe) {
+                            setSelectedProfileUser({
+                              uid: msg.senderId,
+                              displayName: senderDisplayName,
+                              photoURL: msg.senderPhoto,
+                              district: msg.senderDistrict,
+                              vipLevel: msg.senderVipLevel
+                            });
+                          }
+                        }}
+                        className={`font-black text-xs truncate ${!isMe ? 'cursor-pointer hover:underline' : ''} ${
                           nameEffectStyle 
                             ? nameEffectStyle.gradientStyle 
                             : isMe ? 'text-amber-300' : 'text-blue-700'
@@ -769,6 +794,26 @@ export const DistrictChatRoom: React.FC<DistrictChatRoomProps> = ({
           </button>
         </form>
       </div>
+
+      {/* Target User Profile & Friends Modal */}
+      {selectedProfileUser && (
+        <UserProfileCardModal
+          isOpen={Boolean(selectedProfileUser)}
+          targetUserId={selectedProfileUser.uid}
+          targetInitialData={{
+            displayName: selectedProfileUser.displayName,
+            photoURL: selectedProfileUser.photoURL,
+            district: selectedProfileUser.district,
+            vipLevel: selectedProfileUser.vipLevel || 0
+          }}
+          currentUserProfile={currentUserProfile}
+          onClose={() => setSelectedProfileUser(null)}
+          onSendGift={() => {
+            setSelectedProfileUser(null);
+            setShowGiftModal(true);
+          }}
+        />
+      )}
     </div>
   );
 };

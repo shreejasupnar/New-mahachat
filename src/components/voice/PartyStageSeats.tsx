@@ -1,6 +1,6 @@
 import React from 'react';
 import { Mic, MicOff } from 'lucide-react';
-import { VoiceParticipant, UserProfile } from '../../lib/firebase';
+import { VoiceParticipant, UserProfile, auth } from '../../lib/firebase';
 import { 
   getSeatFrameById, 
   getBadgeById, 
@@ -55,6 +55,10 @@ export const PartyStageSeats: React.FC<PartyStageSeatsProps> = ({
     const numberBgColor = (seatNumber === 6 || seatNumber === 7) ? 'bg-pink-500' : 'bg-blue-500';
 
     if (occupant) {
+      const displayPhoto = (isMe && (currentUserProfile?.photoURL || auth.currentUser?.photoURL))
+        ? (currentUserProfile?.photoURL || auth.currentUser?.photoURL)
+        : (occupant?.photoURL || (isMe ? (currentUserProfile?.photoURL || auth.currentUser?.photoURL) : ''));
+
       return (
         <div
           id={`voice-stage-seat-${seatIdx}`}
@@ -65,27 +69,19 @@ export const PartyStageSeats: React.FC<PartyStageSeatsProps> = ({
           className="flex flex-col items-center text-center cursor-pointer group relative transition-transform active:scale-95 select-none"
         >
           {/* Avatar Container with glowing speaking ring & mic status */}
-          <div className="relative w-13 h-13 sm:w-15 sm:h-15 flex items-center justify-center">
+          <div className="relative w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center shrink-0">
             {/* Standard Avatar Frame wrapper if not innovative */}
             <AvatarFrameOverlay
               frameId={isInnovative ? undefined : frameId}
               size="md"
               showCrown={Boolean(seatFrame?.crownBadge)}
             >
-              <div
-                className={`w-full h-full rounded-full overflow-hidden p-0.5 transition-all duration-200 aspect-square flex items-center justify-center ${
-                  activelySpeaking
-                    ? 'ring-2 ring-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.85)] scale-105'
-                    : seatFrame
-                    ? `${seatFrame.seatRingClass}`
-                    : 'ring-1 ring-white/20'
-                }`}
-              >
-                {occupant.photoURL ? (
+              <div className="relative w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-slate-800 z-0 shadow-inner">
+                {displayPhoto ? (
                   <img
-                    src={occupant.photoURL}
-                    alt={occupant.displayName}
-                    className="w-full h-full rounded-full object-cover shadow-sm aspect-square"
+                    src={displayPhoto}
+                    alt={occupant.displayName || 'User'}
+                    className="w-full h-full rounded-full object-cover block"
                     referrerPolicy="no-referrer"
                     onError={(e) => {
                       (e.currentTarget as HTMLElement).style.display = 'none';
@@ -95,12 +91,29 @@ export const PartyStageSeats: React.FC<PartyStageSeatsProps> = ({
                   />
                 ) : null}
                 <div 
-                  className={`avatar-seat-fallback w-full h-full rounded-full bg-gradient-to-br from-indigo-700 to-purple-900 flex items-center justify-center font-bold text-sm text-white ${occupant.photoURL ? 'hidden' : 'flex'}`}
+                  className={`avatar-seat-fallback w-full h-full rounded-full bg-gradient-to-br from-indigo-700 to-purple-900 flex items-center justify-center font-bold text-sm text-white ${displayPhoto ? 'hidden' : 'flex'}`}
                 >
                   {occupant.displayName?.slice(0, 1) || 'U'}
                 </div>
               </div>
             </AvatarFrameOverlay>
+
+            {/* Dedicated Cultural / Store Seat Frame Ring Overlay */}
+            {seatFrame && !isInnovative && (
+              <div className={`absolute inset-0 rounded-full pointer-events-none z-10 ${seatFrame.seatRingClass}`} />
+            )}
+
+            {/* Crown insignia for store seat frame if present */}
+            {seatFrame?.crownBadge && !isInnovative && (
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-20 text-xs drop-shadow-[0_0_8px_rgba(250,204,21,0.8)] animate-bounce select-none pointer-events-none">
+                {seatFrame.crownBadge}
+              </div>
+            )}
+
+            {/* Speaking Audio Glow Pulse */}
+            {activelySpeaking && (
+              <div className="absolute -inset-1 rounded-full ring-2 ring-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.85)] animate-pulse pointer-events-none z-20" />
+            )}
 
             {/* VIP Luxury / Innovative Seat Frame Overlay (Wings, Mandala, Fusion) */}
             {(occupantVipLevel > 0 || isInnovative) && (

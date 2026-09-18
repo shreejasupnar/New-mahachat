@@ -73,15 +73,15 @@ export const PartyRankingCard: React.FC<PartyRankingCardProps> = ({
               <span className="text-sm">🥇</span>
               <div className="w-5 h-5 rounded-full overflow-hidden bg-slate-800 ring-1 ring-yellow-400 shrink-0">
                 {top1.photoURL ? (
-                  <img src={top1.photoURL} alt={top1.displayName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <img src={top1.photoURL} alt={top1.displayName || 'Rank 1'} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center font-bold text-[9px] text-yellow-300 bg-slate-800">
-                    {top1.displayName.slice(0, 1)}
+                    {top1.displayName?.slice(0, 1) || 'U'}
                   </div>
                 )}
               </div>
               <span className="truncate font-semibold text-yellow-200 text-[10px]">
-                {top1.displayName}
+                {top1.displayName || 'User'}
               </span>
             </div>
             <span className="text-[10px] font-black text-yellow-400 shrink-0">
@@ -96,15 +96,15 @@ export const PartyRankingCard: React.FC<PartyRankingCardProps> = ({
               <span className="text-sm">🥈</span>
               <div className="w-5 h-5 rounded-full overflow-hidden bg-slate-800 ring-1 ring-slate-400 shrink-0">
                 {top2.photoURL ? (
-                  <img src={top2.photoURL} alt={top2.displayName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <img src={top2.photoURL} alt={top2.displayName || 'Rank 2'} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center font-bold text-[9px] text-slate-300 bg-slate-800">
-                    {top2.displayName.slice(0, 1)}
+                    {top2.displayName?.slice(0, 1) || 'U'}
                   </div>
                 )}
               </div>
               <span className="truncate font-medium text-slate-300 text-[10px]">
-                {top2.displayName}
+                {top2.displayName || 'User'}
               </span>
             </div>
             <span className="text-[10px] font-bold text-slate-400 shrink-0">

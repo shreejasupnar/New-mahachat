@@ -79,6 +79,7 @@ export async function processUserRecharge(
     coins: newCoins,
     vipExp: newExp,
     totalRecharged: newTotalRecharged,
+    lifetimeCoinsPurchased: (Number(userSnap.data()?.lifetimeCoinsPurchased) || 0) + totalCoinsToAdd,
     vipLevel: newStatus.level,
     lastRechargedAt: new Date().toISOString()
   };
@@ -91,6 +92,22 @@ export async function processUserRecharge(
 
   // Update user profile in Firestore
   await updateDoc(userRef, sanitizeForFirestore(updates));
+
+  // Also synchronize with backend wallet & transaction ledger
+  try {
+    fetch('/api/wallet/credit-purchase', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        coinsToAdd: totalCoinsToAdd,
+        inrPrice: pkg.inrPrice,
+        packageId: pkg.id,
+        paymentMethod,
+        transactionRef: cleanUtr || paymentDetails?.googlePayTransactionId || paymentDetails?.paymentId || transactionId
+      })
+    }).catch(() => {});
+  } catch {}
 
   // Log transaction record in Firestore 'recharges' collection for auditing & persistence
   try {

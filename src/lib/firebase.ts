@@ -28,7 +28,8 @@ import {
   onSnapshot, 
   serverTimestamp, 
   Timestamp,
-  deleteDoc
+  deleteDoc,
+  increment
 } from 'firebase/firestore';
 
 // Read config from firebase-applet-config.json
@@ -68,6 +69,9 @@ export interface UserProfile {
   vipExp?: number;
   coins?: number;
   totalRecharged?: number;
+  lifetimeCoinsPurchased?: number;
+  lifetimeCoinsSpent?: number;
+  lifetimeCoinsReceived?: number;
   lastRechargedAt?: string;
   lastDailyVipClaimDate?: string;
   equippedBubble?: string;
@@ -78,6 +82,20 @@ export interface UserProfile {
   equippedProfileEffect?: string;
   equippedNameEffect?: string;
   entryEffectsEnabled?: boolean;
+  // Privacy & Friends settings
+  isProfilePrivate?: boolean;
+  hideFriendsList?: boolean;
+  hideOnlineStatus?: boolean;
+  friendsCount?: number;
+}
+
+export interface FriendItem {
+  friendId: string;
+  friendName: string;
+  friendPhoto?: string;
+  friendDistrict?: string;
+  friendVipLevel?: number;
+  createdAt?: any;
 }
 
 export interface ChatMessage {
@@ -187,7 +205,12 @@ export function subscribeToAuthUser(
     const userDocRef = doc(db, 'users', user.uid);
     unsubProfile = onSnapshot(userDocRef, (snap) => {
       if (snap.exists()) {
-        callback(user, snap.data() as UserProfile);
+        const profileData = snap.data() as UserProfile;
+        // Guarantee DP from Google auth if not set in profile
+        if (!profileData.photoURL && user.photoURL) {
+          profileData.photoURL = user.photoURL;
+        }
+        callback(user, profileData);
       } else {
         // User logged in but profile doc doesn't exist yet
         callback(user, null);
@@ -233,7 +256,7 @@ export async function saveUserProfile(
     try {
       await fbUpdateProfile(auth.currentUser, {
         displayName: data.displayName,
-        photoURL: data.photoURL || auth.currentUser.photoURL
+        photoURL: data.photoURL || auth.currentUser?.photoURL || ''
       });
     } catch (e) {
       // Non-blocking
@@ -423,8 +446,8 @@ export async function joinVoiceRoom(
   const partRef = doc(db, 'districts', districtId, 'voiceRooms', 'active', 'participants', participant.uid);
   const data = sanitizeForFirestore({
     uid: participant.uid,
-    displayName: participant.displayName || 'वापरकर्ता',
-    photoURL: participant.photoURL || '',
+    displayName: participant.displayName || auth.currentUser?.displayName || 'वापरकर्ता',
+    photoURL: participant.photoURL || auth.currentUser?.photoURL || '',
     isSpeaking: !!participant.isSpeaking,
     isMuted: !!participant.isMuted,
     role: participant.role || 'speaker',
@@ -490,8 +513,8 @@ export async function takeVoiceSeat(
     };
 
     if (profile) {
-      updates.displayName = profile.displayName || 'MahaChat User';
-      updates.photoURL = profile.photoURL || '';
+      updates.displayName = profile.displayName || auth.currentUser?.displayName || 'MahaChat User';
+      updates.photoURL = profile.photoURL || auth.currentUser?.photoURL || '';
       updates.isPremium = profile.subscriptionStatus === 'active' && !!profile.subscriptionEnd && new Date(profile.subscriptionEnd).getTime() > Date.now();
       updates.vipLevel = profile.vipLevel || null;
       updates.equippedSeatFrame = profile.equippedSeatFrame || (profile.vipLevel ? `vip_seat_level_${profile.vipLevel}` : null);
@@ -638,4 +661,167 @@ export async function signOutUser() {
     await updateUserPresence(auth.currentUser.uid, false);
   }
   await fbSignOut(auth);
+}
+
+// ----------------------------------------------------
+// Friendship & Privacy System (मित्र / मैत्री व्यवस्था)
+// ----------------------------------------------------
+
+/**
+ * Fetch a user profile document by ID
+ */
+export async function getUserProfile(userId: string): Promise<UserProfile | null> {
+  try {
+    const userDoc = await getDoc(doc(db, 'users', userId));
+    if (userDoc.exists()) {
+      return userDoc.data() as UserProfile;
+    }
+    return null;
+  } catch (err) {
+    console.warn('Error fetching user profile:', err);
+    return null;
+  }
+}
+
+/**
+ * Add a friend (Bidirectional friendship)
+ */
+export async function addFriend(
+  currentUserId: string,
+  currentUserData: { displayName: string; photoURL?: string; district?: string; vipLevel?: number },
+  targetUserId: string,
+  targetUserData: { displayName: string; photoURL?: string; district?: string; vipLevel?: number }
+) {
+  if (!currentUserId || !targetUserId || currentUserId === targetUserId) return;
+
+  const now = serverTimestamp();
+
+  // 1. Current user's friends collection entry
+  const myFriendRef = doc(db, 'users', currentUserId, 'friends', targetUserId);
+  await setDoc(myFriendRef, {
+    friendId: targetUserId,
+    friendName: targetUserData.displayName || 'मित्र',
+    friendPhoto: targetUserData.photoURL || '',
+    friendDistrict: targetUserData.district || '',
+    friendVipLevel: targetUserData.vipLevel || 0,
+    createdAt: now
+  });
+
+  // 2. Target user's friends collection entry
+  const theirFriendRef = doc(db, 'users', targetUserId, 'friends', currentUserId);
+  await setDoc(theirFriendRef, {
+    friendId: currentUserId,
+    friendName: currentUserData.displayName || 'मित्र',
+    friendPhoto: currentUserData.photoURL || '',
+    friendDistrict: currentUserData.district || '',
+    friendVipLevel: currentUserData.vipLevel || 0,
+    createdAt: now
+  });
+
+  // 3. Increment friendsCount on both user profiles
+  try {
+    await updateDoc(doc(db, 'users', currentUserId), {
+      friendsCount: increment(1)
+    });
+  } catch {
+    // If field doesn't exist yet or fails, setDoc merge
+    await setDoc(doc(db, 'users', currentUserId), { friendsCount: 1 }, { merge: true });
+  }
+
+  try {
+    await updateDoc(doc(db, 'users', targetUserId), {
+      friendsCount: increment(1)
+    });
+  } catch {
+    await setDoc(doc(db, 'users', targetUserId), { friendsCount: 1 }, { merge: true });
+  }
+}
+
+/**
+ * Remove a friend (Unfriend)
+ */
+export async function removeFriend(currentUserId: string, targetUserId: string) {
+  if (!currentUserId || !targetUserId) return;
+
+  // 1. Delete from both collections
+  const myFriendRef = doc(db, 'users', currentUserId, 'friends', targetUserId);
+  const theirFriendRef = doc(db, 'users', targetUserId, 'friends', currentUserId);
+
+  await deleteDoc(myFriendRef);
+  await deleteDoc(theirFriendRef);
+
+  // 2. Decrement friendsCount
+  try {
+    await updateDoc(doc(db, 'users', currentUserId), {
+      friendsCount: increment(-1)
+    });
+  } catch {
+    // Ignore
+  }
+
+  try {
+    await updateDoc(doc(db, 'users', targetUserId), {
+      friendsCount: increment(-1)
+    });
+  } catch {
+    // Ignore
+  }
+}
+
+/**
+ * Real-time listener to check if target user is currently a friend of current user
+ */
+export function subscribeIsFriend(
+  currentUserId: string,
+  targetUserId: string,
+  callback: (isFriend: boolean) => void
+) {
+  if (!currentUserId || !targetUserId || currentUserId === targetUserId) {
+    callback(false);
+    return () => {};
+  }
+
+  const friendRef = doc(db, 'users', currentUserId, 'friends', targetUserId);
+  return onSnapshot(
+    friendRef,
+    (snap) => {
+      callback(snap.exists());
+    },
+    (err) => {
+      console.warn('Error checking friend status:', err);
+      callback(false);
+    }
+  );
+}
+
+/**
+ * Real-time listener for user's friends list
+ */
+export function subscribeToFriends(
+  userId: string,
+  callback: (friends: FriendItem[]) => void
+) {
+  if (!userId) {
+    callback([]);
+    return () => {};
+  }
+
+  const friendsCol = collection(db, 'users', userId, 'friends');
+  return onSnapshot(
+    friendsCol,
+    (snapshot) => {
+      const list: FriendItem[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push({
+          friendId: docSnap.id,
+          ...(docSnap.data() as Omit<FriendItem, 'friendId'>)
+        });
+      });
+      callback(list);
+    },
+    (err) => {
+      console.warn('Error subscribing to friends:', err);
+      callback([]);
+    }
+  );
 }

@@ -332,10 +332,10 @@ export const PremiumStoreScreen: React.FC<PremiumStoreScreenProps> = ({
                     <div className="flex items-center gap-3">
                       <div className={`w-14 h-14 rounded-2xl flex items-center justify-center p-1 relative border-2 ${frame.borderClass} ${frame.glowColor ? 'shadow-md' : ''}`}>
                         <div className="w-full h-full rounded-xl bg-slate-200 flex items-center justify-center text-slate-700 font-black text-base overflow-hidden">
-                          {currentUser.photoURL ? (
+                          {currentUser?.photoURL ? (
                             <img src={currentUser.photoURL} alt="avatar" className="w-full h-full object-cover" />
                           ) : (
-                            currentUser.displayName.charAt(0)
+                            currentUser?.displayName?.charAt(0) || 'U'
                           )}
                         </div>
                         {frame.cornerMotif && (
@@ -407,8 +407,17 @@ export const PremiumStoreScreen: React.FC<PremiumStoreScreenProps> = ({
                       <div className="relative flex flex-col items-center">
                         <div className="text-sm absolute -top-3 z-10">{sf.crownBadge}</div>
                         <div className={`w-14 h-14 rounded-full flex items-center justify-center p-1 bg-slate-900 border-2 ${sf.seatRingClass}`}>
-                          <div className="w-full h-full rounded-full bg-slate-800 text-white flex items-center justify-center font-bold text-xs">
-                            {currentUser.displayName.charAt(0)}
+                          <div className="w-full h-full rounded-full bg-slate-800 text-white flex items-center justify-center font-bold text-xs overflow-hidden">
+                            {currentUser?.photoURL ? (
+                              <img
+                                src={currentUser.photoURL}
+                                alt={currentUser.displayName || 'User'}
+                                className="w-full h-full rounded-full object-cover"
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              currentUser?.displayName?.charAt(0) || 'U'
+                            )}
                           </div>
                         </div>
                       </div>

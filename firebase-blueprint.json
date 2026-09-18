@@ -19,15 +19,36 @@
         "vipExp": { "type": "number" },
         "coins": { "type": "number" },
         "totalRecharged": { "type": "number" },
+        "lifetimeCoinsPurchased": { "type": "number" },
+        "lifetimeCoinsSpent": { "type": "number" },
+        "lifetimeCoinsReceived": { "type": "number" },
         "equippedBubble": { "type": "string", "maxLength": 80 },
         "equippedFrame": { "type": "string", "maxLength": 80 },
         "equippedSeatFrame": { "type": "string", "maxLength": 80 },
         "equippedBadge": { "type": "string", "maxLength": 80 },
         "equippedEntryEffect": { "type": "string", "maxLength": 80 },
         "equippedProfileEffect": { "type": "string", "maxLength": 80 },
-        "equippedNameEffect": { "type": "string", "maxLength": 80 }
+        "equippedNameEffect": { "type": "string", "maxLength": 80 },
+        "isProfilePrivate": { "type": "boolean" },
+        "hideFriendsList": { "type": "boolean" },
+        "hideOnlineStatus": { "type": "boolean" },
+        "friendsCount": { "type": "number" }
       },
       "required": ["uid", "displayName", "district"]
+    },
+    "Friendship": {
+      "title": "Friendship",
+      "description": "Friend connection with mutual status, friend details and privacy",
+      "type": "object",
+      "properties": {
+        "friendId": { "type": "string", "maxLength": 128 },
+        "friendName": { "type": "string", "maxLength": 80 },
+        "friendPhoto": { "type": "string", "maxLength": 1000 },
+        "friendDistrict": { "type": "string", "maxLength": 50 },
+        "friendVipLevel": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["friendId", "friendName"]
     },
     "PremiumSubscription": {
       "title": "PremiumSubscription",
@@ -62,12 +83,61 @@
         "createdAt": { "type": "string" }
       },
       "required": ["districtId", "giftId", "senderId", "recipientId"]
+    },
+    "CoinTransaction": {
+      "title": "CoinTransaction",
+      "description": "Immutable ledger record for all coin wallet credits, debits and adjustments",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "enum": ["PURCHASE", "GIFT_SENT", "GIFT_RECEIVED", "REFUND", "ADMIN_ADJUSTMENT"] },
+        "amount": { "type": "number" },
+        "balanceAfter": { "type": "number" },
+        "description": { "type": "string", "maxLength": 200 },
+        "referenceId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "type", "amount", "balanceAfter"]
+    },
+    "GiftCatalogItem": {
+      "title": "GiftCatalogItem",
+      "description": "Admin configurable virtual gift catalog item with cultural theme and coin price",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 80 },
+        "nameMr": { "type": "string", "maxLength": 80 },
+        "nameEn": { "type": "string", "maxLength": 80 },
+        "previewIcon": { "type": "string", "maxLength": 80 },
+        "coinPrice": { "type": "number" },
+        "culturalTheme": { "type": "string", "maxLength": 80 },
+        "animation": { "type": "string", "maxLength": 80 },
+        "active": { "type": "boolean" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "nameMr", "coinPrice"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "UserProfile",
-      "description": "User profiles including premium subscription states"
+      "description": "User profiles including premium subscription states and coin balance"
+    },
+    "/users/{userId}/friends/{friendId}": {
+      "schema": "Friendship",
+      "description": "Friends of the user with friendship details"
+    },
+    "/users/{userId}/transactions/{txnId}": {
+      "schema": "CoinTransaction",
+      "description": "User specific coin ledger transactions"
+    },
+    "/transactions/{txnId}": {
+      "schema": "CoinTransaction",
+      "description": "System-wide immutable coin transaction ledger"
+    },
+    "/giftCatalog/{giftId}": {
+      "schema": "GiftCatalogItem",
+      "description": "Virtual gift catalog items and price configurations"
     },
     "/subscriptions/{subId}": {
       "schema": "PremiumSubscription",

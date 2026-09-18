@@ -113,7 +113,7 @@ export async function sendRealRoomGift(
   sender: UserProfile,
   recipient: { uid: string; displayName: string; photoURL?: string },
   multiplier: number = 1
-): Promise<void> {
+): Promise<{ success: boolean; newCoins: number; transactionId: string }> {
   const actualSenderUid = auth.currentUser?.uid || sender.uid;
 
   if (!actualSenderUid) {
@@ -141,7 +141,44 @@ export async function sendRealRoomGift(
     ? 'संपूर्ण जिल्हा कट्टा (All Members)' 
     : (recipient.displayName || 'मित्र');
 
-  // 1. Post real-time gift event to district room gifts collection
+  // 1. CALL SECURE SERVER-SIDE TRANSACTION API
+  // Never trusts the client for coin balance or deduction
+  const serverRes = await fetch('/api/wallet/send-gift', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      senderUid: actualSenderUid,
+      senderName: senderDisplayName,
+      senderPhoto: sender.photoURL || auth.currentUser?.photoURL || '',
+      districtId,
+      giftId,
+      multiplier: mult,
+      recipientUids: [recipient.uid],
+      recipientNames: { [recipient.uid]: recipientDisplayName },
+      recipientPhotos: { [recipient.uid]: recipient.photoURL || '' },
+      knownBalance: sender.coins !== undefined ? sender.coins : undefined
+    })
+  });
+
+  const txnResult = await serverRes.json();
+  if (!serverRes.ok || !txnResult.success) {
+    throw new Error(txnResult.error || 'गिफ्ट पाठवताना सर्व्हर त्रुटी आली. कृपया शिल्लक तपासा.');
+  }
+
+  const newBalance = txnResult.newSenderCoins !== undefined ? txnResult.newSenderCoins : Math.max(0, (sender.coins || 0) - (txnResult.totalCost || 0));
+
+  // 2. Synchronize user balance in Firestore
+  try {
+    const senderRef = doc(db, 'users', actualSenderUid);
+    await updateDoc(senderRef, {
+      coins: newBalance,
+      lifetimeCoinsSpent: (sender.lifetimeCoinsSpent || 0) + (txnResult.totalCost || 0)
+    });
+  } catch (syncErr) {
+    console.warn('Firestore coins update note:', syncErr);
+  }
+
+  // 3. Post real-time gift event to district room gifts collection for real-time broadcast animation
   const giftsCol = collection(db, 'districts', districtId, 'gifts');
   await addDoc(giftsCol, {
     districtId,
@@ -156,10 +193,11 @@ export async function sendRealRoomGift(
     recipientName: recipientDisplayName,
     recipientPhoto: recipient.photoURL || '',
     multiplier: mult,
+    transactionId: txnResult.transactionId || '',
     createdAt: serverTimestamp()
   });
 
-  // 2. Post celebratory message in the room chat so real members see it
+  // 4. Post celebratory message in the room chat so real members see it
   const messagesCol = collection(db, 'districts', districtId, 'messages');
   await addDoc(messagesCol, {
     districtId,
@@ -175,7 +213,7 @@ export async function sendRealRoomGift(
     createdAt: serverTimestamp()
   });
 
-  // 3. Post to voice room live stream
+  // 5. Post to voice room live stream
   try {
     const voiceMessagesCol = collection(db, 'districts', districtId, 'voiceRooms', 'active', 'messages');
     await addDoc(voiceMessagesCol, {
@@ -193,7 +231,7 @@ export async function sendRealRoomGift(
     console.warn('Voice room gift notice sync:', err);
   }
 
-  // 4. Increase recipient's voice seat charm score if target is a specific user
+  // 6. Increase recipient's voice seat charm score if target is a specific user
   if (!isBroadcast) {
     try {
       const partRef = doc(db, 'districts', districtId, 'voiceRooms', 'active', 'participants', recipient.uid);
@@ -206,6 +244,12 @@ export async function sendRealRoomGift(
       console.warn('Charm update:', err);
     }
   }
+
+  return {
+    success: true,
+    newCoins: newBalance,
+    transactionId: txnResult.transactionId || ''
+  };
 }
 
 // Subscribe to real-time room gifts (last 10 minutes)

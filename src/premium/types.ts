@@ -37,12 +37,20 @@ export interface BasePremiumAsset {
   active?: boolean;
 }
 
+export type GiftCategoryType = 'love' | 'friendship' | 'festival' | 'heritage';
+
 export interface PremiumGift extends BasePremiumAsset {
   category: 'gifts';
+  giftCategory?: GiftCategoryType;
   descriptionMr: string;
   animation: string;
   accentColor: string;
   tagMr: string;
+  coinPrice?: number;
+  basePrice?: number;
+  marketPrice?: number;
+  priceChangePercent?: number; // e.g. +12 for surge, -8 for discount
+  marketTrend?: 'HOT' | 'SURGE' | 'DISCOUNT' | 'STABLE';
 }
 
 export interface PremiumChatBubble extends BasePremiumAsset {
