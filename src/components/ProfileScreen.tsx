@@ -33,6 +33,8 @@ import { PrivacySettingsModal } from './profile/PrivacySettingsModal';
 import { FriendsListModal } from './profile/FriendsListModal';
 import { TransactionHistoryModal } from './wallet/TransactionHistoryModal';
 import { AdminGiftManagerModal } from './admin/AdminGiftManagerModal';
+import { LogoDownloadModal } from './LogoDownloadModal';
+import { Image as ImageIcon } from 'lucide-react';
 
 interface ProfileScreenProps {
   profile: UserProfile | null;
@@ -65,6 +67,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [showPrivacySettingsModal, setShowPrivacySettingsModal] = useState(false);
   const [showLedgerModal, setShowLedgerModal] = useState(false);
   const [showAdminGiftModal, setShowAdminGiftModal] = useState(false);
+  const [showLogoModal, setShowLogoModal] = useState(false);
   const [friends, setFriends] = useState<FriendItem[]>([]);
 
   useEffect(() => {
@@ -578,6 +581,35 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             </div>
           </button>
 
+          {/* महाचॅट अधिकृत लोगो (JPG) */}
+          <button
+            id="profile-download-logo-button"
+            type="button"
+            onClick={() => setShowLogoModal(true)}
+            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-slate-50/80 active:scale-[0.99] transition-all rounded-2xl cursor-pointer group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center group-hover:scale-105 transition-transform shadow-2xs border border-orange-100">
+                <ImageIcon className="w-5 h-5" />
+              </div>
+              <div className="text-left">
+                <span className="font-bold text-slate-800 text-sm group-hover:text-orange-600 transition-colors block">
+                  MahaChat अधिकृत लोगो (JPG)
+                </span>
+                <span className="text-[11px] text-slate-400 font-medium block">
+                  मराठमोळा सांस्कृतिक लोगो पहा व डाउनलोड करा
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-orange-700 font-bold bg-orange-50 px-2 py-0.5 rounded-md border border-orange-200 flex items-center gap-1">
+                <span>HD JPG</span>
+                <span>🚩</span>
+              </span>
+              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+            </div>
+          </button>
+
           {/* लॉगआउट matching Mockup Screen 7 (Red color) */}
           <button
             id="profile-logout-button"
@@ -815,6 +847,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           onClose={() => setShowAdminGiftModal(false)}
         />
       )}
+
+      {/* MahaChat Official Cultural Logo Download Modal */}
+      <LogoDownloadModal
+        isOpen={showLogoModal}
+        onClose={() => setShowLogoModal(false)}
+      />
     </div>
   );
 };

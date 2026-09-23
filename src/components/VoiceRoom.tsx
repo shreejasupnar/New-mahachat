@@ -5,6 +5,7 @@ import {
   VoiceParticipant, 
   joinVoiceRoom, 
   leaveVoiceRoom, 
+  pingVoiceParticipant,
   updateVoiceState, 
   subscribeToVoiceParticipants,
   takeVoiceSeat,
@@ -101,13 +102,15 @@ interface VoiceRoomProps {
   currentUserProfile: UserProfile | null;
   onBack: () => void;
   onOpenChat: () => void;
+  onOpenGameZone?: () => void;
 }
 
 export const VoiceRoom: React.FC<VoiceRoomProps> = ({
   district,
   currentUserProfile,
   onBack,
-  onOpenChat
+  onOpenChat,
+  onOpenGameZone
 }) => {
   const [participants, setParticipants] = useState<VoiceParticipant[]>([]);
   const [isMuted, setIsMuted] = useState(false);
@@ -518,7 +521,28 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
 
     doJoin();
 
+    // Send heartbeat ping every 12 seconds to keep voice room presence fresh
+    const pingInterval = setInterval(() => {
+      const current = profileRef.current;
+      if (current) {
+        pingVoiceParticipant(district.id, current.uid);
+      }
+    }, 12000);
+
+    const handleTabClose = () => {
+      const current = profileRef.current;
+      if (current) {
+        leaveVoiceRoom(district.id, current.uid);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleTabClose);
+    window.addEventListener('pagehide', handleTabClose);
+
     return () => {
+      clearInterval(pingInterval);
+      window.removeEventListener('beforeunload', handleTabClose);
+      window.removeEventListener('pagehide', handleTabClose);
       const current = profileRef.current;
       if (current) {
         leaveVoiceRoom(district.id, current.uid);
@@ -526,6 +550,24 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
       safeCloseAudio();
     };
   }, [district.id, currentUserProfile?.uid]);
+
+  // Periodic prune of stale participants locally to ensure seats & audience reset promptly
+  useEffect(() => {
+    const pruneInterval = setInterval(() => {
+      const now = Date.now();
+      const STALE_TIMEOUT_MS = 35000;
+      setParticipants(prev => prev.filter(p => {
+        if (p.uid === currentUserProfile?.uid) return true; // Keep local user
+        const lastPing = p.lastPing || p.joinedAt;
+        const lastPingMs = lastPing?.toMillis 
+          ? lastPing.toMillis() 
+          : (lastPing?.seconds ? lastPing.seconds * 1000 : null);
+        return !lastPingMs || (now - lastPingMs < STALE_TIMEOUT_MS);
+      }));
+    }, 10000);
+
+    return () => clearInterval(pruneInterval);
+  }, [currentUserProfile?.uid]);
 
   // Handle microphone mute state on track
   useEffect(() => {
@@ -666,11 +708,16 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
   };
 
   const handleLeave = async () => {
-    safeCloseAudio();
-    await agoraVoiceService.leaveRoom();
+    // 1. Immediately delete from Firestore voice participants
     if (currentUserProfile) {
-      await leaveVoiceRoom(district.id, currentUserProfile.uid);
+      leaveVoiceRoom(district.id, currentUserProfile.uid).catch(() => {});
     }
+    // 2. Immediately remove self from local state to reset room count instantly
+    setParticipants(prev => prev.filter(p => p.uid !== currentUserProfile?.uid));
+    // 3. Clean up audio and Agora
+    safeCloseAudio();
+    agoraVoiceService.leaveRoom().catch(() => {});
+    // 4. Return to previous screen
     onBack();
   };
 
@@ -867,7 +914,7 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
         senderName: currentUserProfile.displayName || 'सदस्य',
         senderPhoto: currentUserProfile.photoURL || '',
         text: `👏 @${userName} यांचे स्वागत असो! ✨`,
-        level: 5
+        level: currentUserProfile.vipLevel || 0
       }).catch(() => {});
     }
   };
@@ -881,7 +928,7 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
       senderName: currentUserProfile.displayName || 'सदस्य',
       senderPhoto: currentUserProfile.photoURL || '',
       text,
-      level: 11
+      level: currentUserProfile.vipLevel || 0
     });
   };
 
@@ -1072,6 +1119,22 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
           onQuickPickSeat={handleQuickPickSeat}
         />
       </div>
+
+      {/* Game Zone Link in Voice Room */}
+      {onOpenGameZone && (
+        <div className="w-full max-w-md mx-auto px-4 py-1 flex justify-end relative z-20">
+          <button
+            id="voice-room-gamezone-link-btn"
+            type="button"
+            onClick={onOpenGameZone}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/85 hover:bg-slate-800 border border-amber-500/40 text-amber-300 text-xs font-black shadow-lg backdrop-blur-md transition-all active:scale-95 cursor-pointer"
+          >
+            <span className="text-sm">🎮</span>
+            <span>गेम झोन (Game Zone)</span>
+            <span className="text-[10px] bg-amber-500 text-slate-950 font-black px-1.5 py-0.2 rounded-full">१v१</span>
+          </button>
+        </div>
+      )}
 
       {/* 3. BELOW EMPTY SPACE FOR TEXT CHAT SHOW SCREEN */}
       <div className="flex-1 w-full max-w-md mx-auto px-2 relative z-10 flex flex-col justify-end overflow-hidden pb-1">
@@ -1295,7 +1358,7 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-2">
-              <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">८ सीट्सवरील स्पीकर्स</h4>
+              <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">१० सीट्सवरील स्पीकर्स</h4>
               {seats.filter(Boolean).length === 0 ? (
                 <p className="text-xs text-slate-500 py-2">कोणत्याही सीटवर स्पीकर नाही.</p>
               ) : (
@@ -1423,7 +1486,7 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
             <div className="text-[11px] text-slate-400 space-y-1.5 pt-1">
               <p className="font-semibold text-pink-300">रोमँटिक पार्टी स्टेज रचना:</p>
               <p className="leading-relaxed">
-                प्रमुख २ होस्ट व्यासपीठ + मध्यभागी लव्ह स्टेज आणि ८ व्हॉईस सीट्स. प्रेक्षक थेट भेटवस्तू पाठवून रँकिंगमध्ये झळकू शकतात.
+                प्रमुख २ होस्ट व्यासपीठ + मध्यभागी लव्ह स्टेज आणि १० व्हॉईस सीट्स. प्रेक्षक थेट भेटवस्तू पाठवून रँकिंगमध्ये झळकू शकतात.
               </p>
             </div>
 

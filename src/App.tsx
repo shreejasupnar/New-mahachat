@@ -21,8 +21,10 @@ import { PremiumStoreScreen } from './components/premium/PremiumStoreScreen';
 import { VipCenterScreen } from './components/vip/VipCenterScreen';
 import { RechargeModal } from './components/vip/RechargeModal';
 import { VipLevelUpModal } from './components/vip/VipLevelUpModal';
+import { GameZoneHomeScreen } from './gamezone/components/GameZoneHomeScreen';
 import { BottomNavigation, NavTab } from './components/BottomNavigation';
 import { NotificationsModal } from './components/NotificationsModal';
+import { LiveRoutes, isLiveFeatureEnabled } from './features/live';
 import { WifiOff, Loader2 } from 'lucide-react';
 
 export default function App() {
@@ -33,9 +35,11 @@ export default function App() {
   // App navigation state
   const [hasSeenSplash, setHasSeenSplash] = useState(false);
   const [activeTab, setActiveTab] = useState<NavTab>('home');
+  const [liveSubView, setLiveSubView] = useState<'tab' | 'setup' | 'room'>('tab');
   const [selectedDistrictId, setSelectedDistrictId] = useState<string | null>(null);
   const [activeVoiceDistrictId, setActiveVoiceDistrictId] = useState<string | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showRechargeModal, setShowRechargeModal] = useState(false);
   const [isOnlineNetwork, setIsOnlineNetwork] = useState(navigator.onLine);
 
   // Listen to network status
@@ -61,7 +65,7 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  // Presence heartbeat: update lastActive every 60s while logged in
+  // Presence heartbeat: update lastActive every 30s while logged in
   useEffect(() => {
     if (!currentUser) return;
 
@@ -72,17 +76,19 @@ export default function App() {
       if (document.visibilityState === 'visible') {
         updateUserPresence(currentUser.uid, true, userProfile?.district);
       }
-    }, 60000);
+    }, 30000);
 
     const handleUnload = () => {
       updateUserPresence(currentUser.uid, false);
     };
 
     window.addEventListener('beforeunload', handleUnload);
+    window.addEventListener('pagehide', handleUnload);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener('beforeunload', handleUnload);
+      window.removeEventListener('pagehide', handleUnload);
     };
   }, [currentUser?.uid, userProfile?.district]);
 
@@ -155,6 +161,11 @@ export default function App() {
               setSelectedDistrictId(activeVoiceDistrictObj.id);
               setActiveVoiceDistrictId(null);
             }}
+            onOpenGameZone={() => {
+              setActiveVoiceDistrictId(null);
+              setSelectedDistrictId(null);
+              setActiveTab('gamezone');
+            }}
           />
         ) : activeDistrictObj ? (
           /* District Real-time Chat Room (Screen 5) */
@@ -164,6 +175,11 @@ export default function App() {
             onBack={() => setSelectedDistrictId(null)}
             onOpenVoiceRoom={(districtId) => {
               setActiveVoiceDistrictId(districtId);
+            }}
+            onOpenGameZone={() => {
+              setSelectedDistrictId(null);
+              setActiveVoiceDistrictId(null);
+              setActiveTab('gamezone');
             }}
           />
         ) : (
@@ -195,10 +211,32 @@ export default function App() {
               />
             )}
 
+            {activeTab === 'gamezone' && (
+              <GameZoneHomeScreen
+                currentUser={currentUser}
+                userCoins={userProfile?.coins || 0}
+                onUpdateCoins={(newBalance) => {
+                  if (userProfile) {
+                    setUserProfile({ ...userProfile, coins: newBalance });
+                  }
+                }}
+                onOpenRecharge={() => setShowRechargeModal(true)}
+                onBack={() => setActiveTab('home')}
+              />
+            )}
+
             {activeTab === 'chats' && (
               <DirectChatsScreen
                 currentUserProfile={userProfile}
                 onExploreDistricts={() => setActiveTab('districts')}
+              />
+            )}
+
+            {activeTab === 'live' && isLiveFeatureEnabled() && (
+              <LiveRoutes
+                currentUserProfile={userProfile}
+                onNavigateHome={() => setActiveTab('home')}
+                onViewChange={(view) => setLiveSubView(view)}
               />
             )}
 
@@ -228,15 +266,20 @@ export default function App() {
               />
             )}
 
-            {/* Bottom Navigation matching Mockup Screens 3, 4, 7 */}
-            <BottomNavigation
-              activeTab={activeTab}
-              onChangeTab={(tab) => {
-                setActiveTab(tab);
-                setSelectedDistrictId(null);
-                setActiveVoiceDistrictId(null);
-              }}
-            />
+            {/* Bottom Navigation matching Mockup Screens 3, 4, 7 (hidden during immersive live broadcast/setup) */}
+            {!(activeTab === 'live' && liveSubView !== 'tab') && (
+              <BottomNavigation
+                activeTab={activeTab}
+                onChangeTab={(tab) => {
+                  setActiveTab(tab);
+                  setSelectedDistrictId(null);
+                  setActiveVoiceDistrictId(null);
+                  if (tab !== 'live') {
+                    setLiveSubView('tab');
+                  }
+                }}
+              />
+            )}
           </>
         )}
 
@@ -245,6 +288,15 @@ export default function App() {
           isOpen={showNotifications}
           onClose={() => setShowNotifications(false)}
         />
+
+        {/* Recharge Modal when opened from Game Zone or elsewhere */}
+        {userProfile && (
+          <RechargeModal
+            isOpen={showRechargeModal}
+            currentUser={userProfile}
+            onClose={() => setShowRechargeModal(false)}
+          />
+        )}
       </div>
     </div>
   );

@@ -96,7 +96,7 @@ export const VIP_TIERS: VipTierConfig[] = [
         id: 'p2_seat',
         titleMr: 'सिल्व्हर स्पार्क सीट फ्रेम',
         titleEn: 'Silver Sparkle Seat Frame',
-        descMr: '८-सीट कट्ट्यावर बसताना सिल्व्हर रिंग आणि तारांकित चमक',
+        descMr: '१०-सीट कट्ट्यावर बसताना सिल्व्हर रिंग आणि तारांकित चमक',
         iconName: 'seat'
       },
       {

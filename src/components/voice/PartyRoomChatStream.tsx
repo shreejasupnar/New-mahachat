@@ -158,12 +158,17 @@ export const PartyRoomChatStream: React.FC<PartyRoomChatStreamProps> = ({
                   <span className={`font-bold text-xs ${vipTier ? 'text-white font-black' : 'text-pink-300'}`}>
                     {msg.senderName}
                   </span>
-                  {msg.level ? (
+                  {msg.level && msg.level > 0 ? (
                     <VipBadge level={msg.level} size="xs" />
                   ) : null}
                 </div>
-                <p className="text-slate-200 text-xs sm:text-sm mt-0.5 break-words leading-relaxed">
-                  {msg.text}
+                <p className="text-slate-200 text-xs sm:text-sm mt-0.5 break-words leading-relaxed flex flex-wrap items-baseline gap-1">
+                  {msg.level && msg.level > 0 ? (
+                    <span className="inline-flex items-center align-middle mr-1 select-none shrink-0" title={`VIP ${msg.level}`}>
+                      <VipBadge level={msg.level} size="xs" />
+                    </span>
+                  ) : null}
+                  <span>{msg.text}</span>
                 </p>
               </div>
             </div>

@@ -15,11 +15,13 @@ import {
   MessageSquare,
   ArrowRight,
   Coins,
-  Crown
+  Crown,
+  Gamepad2
 } from 'lucide-react';
 import { VipBadge } from './vip/VipBadge';
 import { RechargeModal } from './vip/RechargeModal';
 import { calculateVipStatus } from '../data/vipData';
+import { LogoDownloadModal } from './LogoDownloadModal';
 
 interface HomeScreenProps {
   currentUserProfile: UserProfile | null;
@@ -40,6 +42,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [districtOnlineCounts, setDistrictOnlineCounts] = useState<Record<string, number>>({});
   const [showAdsAdmin, setShowAdsAdmin] = useState(false);
   const [showRechargeModal, setShowRechargeModal] = useState(false);
+  const [showLogoModal, setShowLogoModal] = useState(false);
 
   const vipStatus = calculateVipStatus(
     currentUserProfile?.vipExp || 0,
@@ -65,8 +68,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               ? data.lastActive.toMillis() 
               : (data.lastActive?.seconds ? data.lastActive.seconds * 1000 : 0);
             
-            // Only count if active within the last 5 minutes (real presence)
-            if (!lastActiveMs || (now - lastActiveMs) < 300000) {
+            // Only count if active within the last 70 seconds (real active presence)
+            if (!lastActiveMs || (now - lastActiveMs) < 70000) {
               counts[data.district] = (counts[data.district] || 0) + 1;
             }
           }
@@ -96,17 +99,23 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       {/* App Bar matching Mockup Screen 3 */}
       <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-xl border-b border-slate-200/80 px-4 py-3 flex items-center justify-between shadow-[0_2px_12px_rgba(15,23,42,0.03)] glossy-top-edge">
         {/* Brand with authentic MahaChat visual */}
-        <div className="flex items-center gap-2.5">
+        <button
+          type="button"
+          onClick={() => setShowLogoModal(true)}
+          className="flex items-center gap-2.5 text-left cursor-pointer group active:scale-95 transition-transform"
+          title="MahaChat अधिकृत लोगो पहा व JPG डाउनलोड करा"
+        >
           <MahaChatLogo size={36} showText={false} />
           <div>
-            <span className="text-xl font-black bg-gradient-to-r from-blue-700 to-indigo-600 bg-clip-text text-transparent tracking-tight leading-none block">
+            <span className="text-xl font-black bg-gradient-to-r from-orange-600 via-amber-600 to-red-600 bg-clip-text text-transparent tracking-tight leading-none block group-hover:opacity-90">
               MahaChat
             </span>
-            <span className="text-[10px] text-slate-500 font-semibold tracking-wide">
-              महाराष्ट्र चॅट
+            <span className="text-[10px] text-amber-700 font-bold tracking-wide flex items-center gap-0.5">
+              <span>महाराष्ट्र चॅट</span>
+              <span className="text-[9px]">🚩</span>
             </span>
           </div>
-        </div>
+        </button>
 
         {/* Header Right Actions */}
         <div className="flex items-center gap-2">
@@ -212,7 +221,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 className="py-2.5 px-3 bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 active:scale-[0.97] text-slate-950 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-[0_4px_12px_rgba(245,158,11,0.3)] transition-all cursor-pointer border border-amber-300/60"
               >
                 <Radio className="w-3.5 h-3.5 text-slate-950 animate-pulse" />
-                <span>व्हॉईस रूम (८ सीट्स)</span>
+                <span>व्हॉईस रूम (१० सीट्स)</span>
               </button>
             </div>
           </div>
@@ -229,7 +238,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
               <span className="text-xs font-bold text-cyan-300 uppercase tracking-wider">
-                ८ सीट्स व्हॉईस कट्टा
+                १० सीट्स व्हॉईस कट्टा
               </span>
             </div>
             <span className="text-[11px] bg-blue-500/20 text-cyan-300 border border-cyan-400/30 px-2.5 py-0.5 rounded-full font-bold shadow-xs">
@@ -243,7 +252,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 जिल्हा व्हॉईस रूम्स (Live Audio)
               </h3>
               <p className="text-xs text-slate-300 mt-0.5 max-w-[240px] leading-relaxed">
-                प्रत्येक जिल्ह्यासाठी ८ सीट्सची ऑडिओ रूम • थेट बोला व ऐका!
+                प्रत्येक जिल्ह्यासाठी १० सीट्सची ऑडिओ रूम • थेट बोला व ऐका!
               </p>
             </div>
 
@@ -258,6 +267,39 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               <span>कट्टे पहा</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </span>
+          </div>
+        </div>
+
+        {/* 1v1 GAME ZONE SPOTLIGHT CARD */}
+        <div
+          id="home-gamezone-spotlight-card"
+          onClick={() => onNavigateTab('gamezone')}
+          className="relative overflow-hidden bg-gradient-to-r from-amber-600 via-orange-600 to-red-600 rounded-3xl p-4 text-white shadow-[0_10px_25px_-5px_rgba(234,88,12,0.4)] cursor-pointer hover:scale-[1.01] active:scale-[0.99] transition-all group border border-amber-300/40"
+        >
+          <div className="absolute -top-6 -right-6 w-28 h-28 bg-white/20 rounded-full blur-xl pointer-events-none" />
+          <div className="relative z-10 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md border border-white/40 flex items-center justify-center text-2xl shadow-inner group-hover:scale-110 transition-transform">
+                🎮
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-black text-white drop-shadow-xs">
+                    गेम झोन (1 vs 1 Game Zone)
+                  </h3>
+                  <span className="text-[10px] bg-white text-orange-700 font-black px-2 py-0.5 rounded-full shadow-xs">
+                    ३० नाणी
+                  </span>
+                </div>
+                <p className="text-xs text-orange-100 mt-0.5 font-medium">
+                  ल्युडो, विटी दांडू, कॅरम, सापशिडी, मराठी क्विझ • थेट ऑनलाइन स्पर्धा
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 text-xs font-black text-white group-hover:translate-x-1 transition-transform bg-black/20 px-2.5 py-1.5 rounded-xl border border-white/20">
+              <span>खेळा</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </div>
           </div>
         </div>
 
@@ -377,7 +419,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                       type="button"
                       onClick={() => onOpenVoiceRoom(district.id)}
                       className="py-1.5 px-2.5 bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white rounded-lg text-[10px] font-black flex items-center gap-1 transition-all cursor-pointer active:scale-95 border border-blue-200/60 shadow-xs"
-                      title="व्हॉईस रूम (८ सीट्स)"
+                      title="व्हॉईस रूम (१० सीट्स)"
                     >
                       <Radio className="w-3 h-3" />
                       <span>कट्टा</span>
@@ -415,6 +457,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           }}
         />
       )}
+
+      {/* MahaChat Official Cultural Logo Download Modal */}
+      <LogoDownloadModal
+        isOpen={showLogoModal}
+        onClose={() => setShowLogoModal(false)}
+      />
     </div>
   );
 };

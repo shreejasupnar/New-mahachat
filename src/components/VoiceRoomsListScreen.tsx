@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { MAHARASHTRA_DISTRICTS, DIVISIONS, District } from '../data/districts';
 import { DistrictIcon } from './DistrictIcon';
 import { db, UserProfile } from '../lib/firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, deleteDoc } from 'firebase/firestore';
 import { 
   Radio, 
   Search, 
@@ -40,11 +40,24 @@ export const VoiceRoomsListScreen: React.FC<VoiceRoomsListScreenProps> = ({
         const unsub = onSnapshot(partsRef, (snapshot) => {
           let total = 0;
           let speakers = 0;
-          snapshot.forEach((doc) => {
-            total += 1;
-            const data = doc.data();
-            if (data.role === 'speaker' || data.seatIndex !== null && data.seatIndex !== undefined) {
-              speakers += 1;
+          const now = Date.now();
+          const STALE_TIMEOUT_MS = 35000;
+
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            const lastPing = data.lastPing || data.joinedAt;
+            const lastPingMs = lastPing?.toMillis 
+              ? lastPing.toMillis() 
+              : (lastPing?.seconds ? lastPing.seconds * 1000 : null);
+            const isAlive = !lastPingMs || (now - lastPingMs < STALE_TIMEOUT_MS);
+
+            if (isAlive) {
+              total += 1;
+              if (data.role === 'speaker' || (data.seatIndex !== null && data.seatIndex !== undefined)) {
+                speakers += 1;
+              }
+            } else {
+              deleteDoc(docSnap.ref).catch(() => {});
             }
           });
           setRoomParticipantsCount((prev) => ({
@@ -89,7 +102,7 @@ export const VoiceRoomsListScreen: React.FC<VoiceRoomsListScreenProps> = ({
             <h1 className="text-base sm:text-lg font-black text-white leading-tight flex items-center gap-2">
               <span>जिल्हा व्हॉईस कट्टा</span>
               <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold shadow-xs">
-                ८ सीट्स
+                १० सीट्स
               </span>
             </h1>
             <p className="text-[11px] text-slate-400 font-medium">
@@ -140,7 +153,7 @@ export const VoiceRoomsListScreen: React.FC<VoiceRoomsListScreenProps> = ({
                 <div className="text-[11px] text-blue-200 mt-1 flex items-center gap-2 font-medium">
                   <span className="flex items-center gap-1">
                     <Mic className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>{userDistrictCounts.speakers} / ८ सीट्स व्यापल्या</span>
+                    <span>{userDistrictCounts.speakers} / १० सीट्स व्यापल्या</span>
                   </span>
                 </div>
               </div>
@@ -148,7 +161,7 @@ export const VoiceRoomsListScreen: React.FC<VoiceRoomsListScreenProps> = ({
 
             <div className="relative z-10 mt-4 pt-3 border-t border-white/10 flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                {Array.from({ length: 8 }).map((_, idx) => (
+                {Array.from({ length: 10 }).map((_, idx) => (
                   <span
                     key={idx}
                     className={`w-2.5 h-2.5 rounded-full transition-all ${
@@ -218,7 +231,7 @@ export const VoiceRoomsListScreen: React.FC<VoiceRoomsListScreenProps> = ({
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
               सर्व ३६ जिल्ह्यांचे कट्टे ({filteredDistricts.length})
             </h3>
-            <span className="text-[11px] text-blue-400 font-bold">प्रत्येक रूममध्ये ८ सीट्स</span>
+            <span className="text-[11px] text-blue-400 font-bold">प्रत्येक रूममध्ये १० सीट्स</span>
           </div>
 
           {filteredDistricts.length === 0 ? (
@@ -276,7 +289,7 @@ export const VoiceRoomsListScreen: React.FC<VoiceRoomsListScreenProps> = ({
 
                         <span className="flex items-center gap-1 text-cyan-300">
                           <Mic className="w-3 h-3 text-cyan-400" />
-                          <span>{counts.speakers} / ८ सीट्स</span>
+                          <span>{counts.speakers} / १० सीट्स</span>
                         </span>
                       </div>
                     </div>

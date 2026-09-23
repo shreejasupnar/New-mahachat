@@ -6,6 +6,9 @@ import {
   sendDistrictMessage, 
   subscribeToDistrictMessages, 
   subscribeToDistrictOnlineUsers,
+  joinDistrictChatRoom,
+  pingDistrictChatRoom,
+  leaveDistrictChatRoom,
   submitReport,
   blockUser
 } from '../lib/firebase';
@@ -27,6 +30,7 @@ import { GiftOverlay } from './premium/GiftOverlay';
 import { EntryEffectOverlay } from './premium/EntryEffectOverlay';
 import { DistrictIcon } from './DistrictIcon';
 import { UserProfileCardModal } from './profile/UserProfileCardModal';
+import { VipBadge } from './vip/VipBadge';
 import { 
   ArrowLeft, 
   Send, 
@@ -42,7 +46,8 @@ import {
   Radio,
   X,
   Gift,
-  Crown
+  Crown,
+  Gamepad2
 } from 'lucide-react';
 
 interface DistrictChatRoomProps {
@@ -50,6 +55,7 @@ interface DistrictChatRoomProps {
   currentUserProfile: UserProfile | null;
   onBack: () => void;
   onOpenVoiceRoom: (districtId: string) => void;
+  onOpenGameZone?: () => void;
 }
 
 // Regional quick phrases popular in Maharashtra
@@ -67,7 +73,8 @@ export const DistrictChatRoom: React.FC<DistrictChatRoomProps> = ({
   district,
   currentUserProfile,
   onBack,
-  onOpenVoiceRoom
+  onOpenVoiceRoom,
+  onOpenGameZone
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
@@ -170,6 +177,33 @@ export const DistrictChatRoom: React.FC<DistrictChatRoomProps> = ({
     return () => unsubscribe();
   }, [district.id]);
 
+  // Real-time active room presence in this district
+  useEffect(() => {
+    if (!currentUserProfile) return;
+
+    // Join district chat room presence immediately
+    joinDistrictChatRoom(district.id, currentUserProfile.uid);
+
+    // Send heartbeat every 12 seconds
+    const pingInterval = setInterval(() => {
+      pingDistrictChatRoom(district.id, currentUserProfile.uid);
+    }, 12000);
+
+    const handleExit = () => {
+      leaveDistrictChatRoom(currentUserProfile.uid);
+    };
+
+    window.addEventListener('beforeunload', handleExit);
+    window.addEventListener('pagehide', handleExit);
+
+    return () => {
+      clearInterval(pingInterval);
+      window.removeEventListener('beforeunload', handleExit);
+      window.removeEventListener('pagehide', handleExit);
+      leaveDistrictChatRoom(currentUserProfile.uid);
+    };
+  }, [district.id, currentUserProfile?.uid]);
+
   // Subscribe to real online presence
   useEffect(() => {
     const unsubPresence = subscribeToDistrictOnlineUsers(
@@ -181,6 +215,14 @@ export const DistrictChatRoom: React.FC<DistrictChatRoomProps> = ({
 
     return () => unsubPresence();
   }, [district.id]);
+
+  const handleLeaveRoom = () => {
+    if (currentUserProfile) {
+      leaveDistrictChatRoom(currentUserProfile.uid);
+    }
+    setOnlineCount(prev => Math.max(0, prev - 1));
+    onBack();
+  };
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -208,7 +250,8 @@ export const DistrictChatRoom: React.FC<DistrictChatRoomProps> = ({
         senderBadge: currentUserProfile.equippedBadge,
         senderBubble: currentUserProfile.equippedBubble,
         senderNameEffect: currentUserProfile.equippedNameEffect,
-        isPremiumSender: isUserSubscribed(currentUserProfile)
+        isPremiumSender: isUserSubscribed(currentUserProfile),
+        vipLevel: currentUserProfile.vipLevel || 0
       });
       setInputText('');
       setLastSentTime(now);
@@ -323,7 +366,7 @@ export const DistrictChatRoom: React.FC<DistrictChatRoomProps> = ({
           <button
             id="chat-back-button"
             type="button"
-            onClick={onBack}
+            onClick={handleLeaveRoom}
             className="w-8 h-8 rounded-full bg-slate-100/90 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-all cursor-pointer shrink-0 active:scale-90 border border-slate-200/60"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -371,11 +414,25 @@ export const DistrictChatRoom: React.FC<DistrictChatRoomProps> = ({
             type="button"
             onClick={() => onOpenVoiceRoom(district.id)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-90 text-white rounded-xl text-xs font-black transition-all shadow-[0_2px_8px_rgba(37,99,235,0.35)] border border-blue-400/40 cursor-pointer btn-glossy"
-            title="जिल्हा व्हॉईस कट्टा (८ सीट्स)"
+            title="जिल्हा व्हॉईस कट्टा (१० सीट्स)"
           >
             <Radio className="w-3.5 h-3.5 animate-pulse text-amber-300" />
-            <span className="hidden xs:inline">व्हॉईस (८)</span>
+            <span className="hidden xs:inline">व्हॉईस (१०)</span>
           </button>
+
+          {/* Game Zone Link */}
+          {onOpenGameZone && (
+            <button
+              id="open-gamezone-button"
+              type="button"
+              onClick={onOpenGameZone}
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 active:scale-90 text-slate-950 rounded-xl text-xs font-black transition-all shadow-[0_2px_8px_rgba(245,158,11,0.35)] cursor-pointer"
+              title="गेम झोन (Game Zone) खेळा"
+            >
+              <span>🎮</span>
+              <span className="hidden xs:inline">गेम</span>
+            </button>
+          )}
 
           {/* 3-dots menu button */}
           <div className="relative">
@@ -406,6 +463,16 @@ export const DistrictChatRoom: React.FC<DistrictChatRoomProps> = ({
                   <Volume2 className="w-4 h-4 text-emerald-600" />
                   <span>जिल्हा व्हॉईस रूम</span>
                 </button>
+                {onOpenGameZone && (
+                  <button
+                    type="button"
+                    onClick={() => { onOpenGameZone(); setShowMenu(false); }}
+                    className="w-full px-3.5 py-2.5 text-left hover:bg-amber-50/90 flex items-center gap-2 text-amber-700 font-bold transition-colors"
+                  >
+                    <Gamepad2 className="w-4 h-4 text-amber-600" />
+                    <span>गेम झोन (Game Zone)</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -559,6 +626,7 @@ export const DistrictChatRoom: React.FC<DistrictChatRoomProps> = ({
             const bubbleStyle = msg.senderBubble ? getBubbleById(msg.senderBubble) : null;
             const badgeStyle = msg.senderBadge ? getBadgeById(msg.senderBadge) : null;
             const nameEffectStyle = msg.senderNameEffect ? getNameEffectById(msg.senderNameEffect) : null;
+            const senderVipLevel = Number(msg.vipLevel || (msg as any).senderVipLevel) || (isMe ? (currentUserProfile?.vipLevel || 0) : 0);
 
             return (
               <div
@@ -573,7 +641,7 @@ export const DistrictChatRoom: React.FC<DistrictChatRoomProps> = ({
                       displayName: senderDisplayName,
                       photoURL: msg.senderPhoto,
                       district: msg.senderDistrict,
-                      vipLevel: msg.senderVipLevel
+                      vipLevel: senderVipLevel
                     })}
                     title={`${senderDisplayName} (प्रोफाइल व मित्र पहा)`}
                     className="w-8 h-8 rounded-full overflow-hidden bg-slate-200 shrink-0 mb-1 ring-1 ring-slate-300 cursor-pointer shadow-2xs hover:scale-105 transition-transform"
@@ -617,7 +685,7 @@ export const DistrictChatRoom: React.FC<DistrictChatRoomProps> = ({
                               displayName: senderDisplayName,
                               photoURL: msg.senderPhoto,
                               district: msg.senderDistrict,
-                              vipLevel: msg.senderVipLevel
+                              vipLevel: senderVipLevel
                             });
                           }
                         }}
@@ -629,6 +697,11 @@ export const DistrictChatRoom: React.FC<DistrictChatRoomProps> = ({
                       >
                         {senderDisplayName}
                       </span>
+
+                      {/* Respective VIP Badge */}
+                      {senderVipLevel > 0 && (
+                        <VipBadge level={senderVipLevel} size="xs" />
+                      )}
 
                       {/* Maharashtra Culturally Authentic Badge */}
                       {badgeStyle && (
@@ -664,14 +737,19 @@ export const DistrictChatRoom: React.FC<DistrictChatRoomProps> = ({
                     )}
                   </div>
 
-                  {/* Message Body */}
-                  <p className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${
+                  {/* Message Body with Respective VIP Tag in front of typed text */}
+                  <div className={`text-sm leading-relaxed whitespace-pre-wrap break-words flex flex-wrap items-baseline gap-1.5 ${
                     bubbleStyle
                       ? bubbleStyle.textColor
                       : isMe ? 'text-white font-normal' : 'text-slate-800'
                   }`}>
-                    {msg.text}
-                  </p>
+                    {senderVipLevel > 0 && (
+                      <span className="inline-flex items-center align-middle mr-1 select-none shrink-0" title={`VIP ${senderVipLevel}`}>
+                        <VipBadge level={senderVipLevel} size="xs" />
+                      </span>
+                    )}
+                    <span>{msg.text}</span>
+                  </div>
 
                   {/* Timestamp matching Mockup Screen 5 */}
                   <div
@@ -767,17 +845,24 @@ export const DistrictChatRoom: React.FC<DistrictChatRoomProps> = ({
           <Gift className="w-5 h-5" />
         </button>
 
-        {/* Input Field with exact placeholder from Screen 5: "मेसेज टाइप करा..." */}
+        {/* Input Field with respective VIP tag in front of typed text */}
         <form onSubmit={handleSendMessage} className="flex-1 flex items-center gap-2">
-          <input
-            id="chat-message-input"
-            type="text"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            placeholder="मेसेज टाइप करा..."
-            maxLength={1000}
-            className="flex-1 py-2 px-3.5 bg-slate-100/80 hover:bg-slate-100 focus:bg-white border border-slate-200/70 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 rounded-2xl text-xs sm:text-sm focus:outline-none transition-all"
-          />
+          <div className="flex-1 flex items-center gap-2 py-1 px-3 bg-slate-100/80 hover:bg-slate-100 focus-within:bg-white border border-slate-200/70 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-500/20 rounded-2xl transition-all">
+            {currentUserProfile?.vipLevel && currentUserProfile.vipLevel > 0 ? (
+              <div className="shrink-0 flex items-center select-none" title={`तुमचा VIP दर्जा: VIP ${currentUserProfile.vipLevel}`}>
+                <VipBadge level={currentUserProfile.vipLevel} size="xs" />
+              </div>
+            ) : null}
+            <input
+              id="chat-message-input"
+              type="text"
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              placeholder="मेसेज टाइप करा..."
+              maxLength={1000}
+              className="flex-1 py-1 bg-transparent border-none text-xs sm:text-sm focus:outline-none text-slate-800 placeholder-slate-400"
+            />
+          </div>
 
           {/* Send Button: Blue Circle with Paper Airplane matching Mockup Screen 5 */}
           <button

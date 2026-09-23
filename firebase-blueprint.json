@@ -116,6 +116,51 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["id", "nameMr", "coinPrice"]
+    },
+    "GameMatch": {
+      "title": "GameMatch",
+      "description": "1v1 multiplayer game session with synchronized moves and scores",
+      "type": "object",
+      "properties": {
+        "matchId": { "type": "string", "maxLength": 128 },
+        "gameId": { "type": "string", "maxLength": 60 },
+        "status": { "type": "string", "enum": ["searching", "opponent_found", "ready", "countdown", "playing", "finished", "abandoned", "cancelled"] },
+        "player1Uid": { "type": "string", "maxLength": 128 },
+        "player2Uid": { "type": "string", "maxLength": 128 },
+        "turn": { "type": "string", "maxLength": 128 },
+        "winnerUid": { "type": "string", "maxLength": 128 },
+        "isDraw": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["matchId", "gameId", "status", "player1Uid"]
+    },
+    "GameQueueEntry": {
+      "title": "GameQueueEntry",
+      "description": "Matchmaking queue entry for a player seeking a 1v1 game",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "gameId": { "type": "string", "maxLength": 60 },
+        "displayName": { "type": "string", "maxLength": 80 },
+        "district": { "type": "string", "maxLength": 50 },
+        "status": { "type": "string", "enum": ["waiting", "matched"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "gameId", "status"]
+    },
+    "GamePlayerStats": {
+      "title": "GamePlayerStats",
+      "description": "Player Game Zone statistics, XP, rating, and achievements",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "gamesPlayed": { "type": "number" },
+        "wins": { "type": "number" },
+        "losses": { "type": "number" },
+        "xp": { "type": "number" },
+        "rating": { "type": "number" }
+      },
+      "required": ["userId", "gamesPlayed", "wins", "xp"]
     }
   },
   "firestore": {
@@ -150,6 +195,18 @@
     "/districts/{districtId}/messages/{messageId}": {
       "schema": "ChatMessage",
       "description": "Text messages sent within a district"
+    },
+    "/gameMatches/{matchId}": {
+      "schema": "GameMatch",
+      "description": "Real-time 1v1 multiplayer game match session state and moves"
+    },
+    "/gameQueue/{queueId}": {
+      "schema": "GameQueueEntry",
+      "description": "Active real-time matchmaking queue entries for 1v1 challenges"
+    },
+    "/gameStats/{userId}": {
+      "schema": "GamePlayerStats",
+      "description": "User game statistics, XP, rating, wins and achievements"
     }
   }
 }

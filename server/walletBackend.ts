@@ -25,7 +25,7 @@ export interface ServerCatalogGift {
 export interface ServerTransaction {
   id: string;
   userId: string;
-  type: 'PURCHASE' | 'GIFT_SENT' | 'GIFT_RECEIVED' | 'REFUND' | 'ADMIN_ADJUSTMENT';
+  type: 'PURCHASE' | 'GIFT_SENT' | 'GIFT_RECEIVED' | 'REFUND' | 'ADMIN_ADJUSTMENT' | 'GAME_CHALLENGE' | 'GAME_REWARD';
   amount: number;
   balanceAfter: number;
   description: string;
@@ -1645,3 +1645,270 @@ export function getTransactions(userId?: string, limitCount: number = 50): Serve
   }
   return transactionLedger.slice(0, limitCount);
 }
+
+/**
+ * Game Zone Idempotency & Match Statistics Storage
+ */
+const challengeDeductions = new Map<string, { txnId: string; userId: string; coins: number; status: 'SUCCESS' | 'REFUNDED' }>();
+
+export interface GameUserStats {
+  userId: string;
+  gamesPlayed: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  xp: number;
+  rating: number;
+  favoriteGame: string;
+  winStreak: number;
+  achievements: string[];
+}
+
+const gameStatsMap = new Map<string, GameUserStats>();
+
+/**
+ * Deduct exactly 30 coins for 1v1 Game Zone Challenge Entry
+ * Strictly idempotent per (userId + matchId)
+ */
+export function executeGameChallengeEntry(
+  userId: string,
+  matchId: string,
+  gameId: string,
+  gameName: string = 'Game',
+  knownBalance?: number
+): { success: boolean; transactionId?: string; newBalance?: number; error?: string } {
+  if (!userId || !matchId) {
+    return { success: false, error: 'User ID आणि Match ID आवश्यक आहेत.' };
+  }
+
+  const idempotencyKey = `${userId}_${matchId}`;
+  if (challengeDeductions.has(idempotencyKey)) {
+    const existing = challengeDeductions.get(idempotencyKey)!;
+    const wallet = getUserWallet(userId, knownBalance);
+    return {
+      success: true,
+      transactionId: existing.txnId,
+      newBalance: wallet.coinBalance
+    };
+  }
+
+  const ENTRY_FEE = 30;
+  const wallet = getUserWallet(userId, knownBalance);
+
+  if (wallet.coinBalance < ENTRY_FEE) {
+    return {
+      success: false,
+      error: `अपुरा कॉइन बॅलन्स. चॅलेंजसाठी ३० कॉइन्स आवश्यक आहेत (तुमच्याकडे ${wallet.coinBalance} कॉइन्स आहेत).`
+    };
+  }
+
+  // Deduct exactly 30 coins
+  wallet.coinBalance -= ENTRY_FEE;
+  wallet.lifetimeCoinsSpent += ENTRY_FEE;
+  wallet.lastTransactionAt = new Date().toISOString();
+
+  const txn = recordTransaction(
+    userId,
+    'GAME_CHALLENGE',
+    ENTRY_FEE,
+    wallet.coinBalance,
+    `🎮 गेम झोन चॅलेंज प्रवेश: ${gameName} (३० कॉइन्स)`,
+    matchId,
+    {
+      matchId,
+      gameId,
+      gameName,
+      status: 'SUCCESS',
+      entryFee: ENTRY_FEE
+    }
+  );
+
+  challengeDeductions.set(idempotencyKey, {
+    txnId: txn.id,
+    userId,
+    coins: ENTRY_FEE,
+    status: 'SUCCESS'
+  });
+
+  persistLedger();
+
+  return {
+    success: true,
+    transactionId: txn.id,
+    newBalance: wallet.coinBalance
+  };
+}
+
+/**
+ * Refund 30 coins if matchmaking is cancelled or failed before match start
+ * Strictly idempotent
+ */
+export function executeGameChallengeRefund(
+  userId: string,
+  matchId: string,
+  gameId: string,
+  reason: string = 'Matchmaking cancelled'
+): { success: boolean; transactionId?: string; newBalance?: number; error?: string } {
+  if (!userId || !matchId) {
+    return { success: false, error: 'User ID आणि Match ID आवश्यक आहेत.' };
+  }
+
+  const idempotencyKey = `${userId}_${matchId}`;
+  const record = challengeDeductions.get(idempotencyKey);
+
+  if (!record) {
+    // If it wasn't charged, nothing to refund
+    const wallet = getUserWallet(userId);
+    return { success: true, newBalance: wallet.coinBalance };
+  }
+
+  if (record.status === 'REFUNDED') {
+    const wallet = getUserWallet(userId);
+    return { success: true, transactionId: record.txnId, newBalance: wallet.coinBalance };
+  }
+
+  const REFUND_AMOUNT = record.coins || 30;
+  const wallet = getUserWallet(userId);
+  wallet.coinBalance += REFUND_AMOUNT;
+  wallet.lastTransactionAt = new Date().toISOString();
+
+  const txn = recordTransaction(
+    userId,
+    'REFUND',
+    REFUND_AMOUNT,
+    wallet.coinBalance,
+    `🎮 गेम झोन चॅलेंज रद्द - ३० कॉइन्स परतावा (${reason})`,
+    matchId,
+    {
+      matchId,
+      gameId,
+      reason,
+      status: 'REFUNDED'
+    }
+  );
+
+  record.status = 'REFUNDED';
+  record.txnId = txn.id;
+  persistLedger();
+
+  return {
+    success: true,
+    transactionId: txn.id,
+    newBalance: wallet.coinBalance
+  };
+}
+
+/**
+ * Record Game Match Results & Update Player XP / Leaderboard
+ */
+export function recordGameMatchCompletion(params: {
+  matchId: string;
+  gameId: string;
+  player1Uid: string;
+  player2Uid: string;
+  winnerUid?: string;
+  isDraw?: boolean;
+  score1: number;
+  score2: number;
+  durationSeconds: number;
+}): { success: boolean; xpEarnedP1: number; xpEarnedP2: number } {
+  const { player1Uid, player2Uid, winnerUid, isDraw, gameId } = params;
+
+  // Initialize or get stats
+  const getOrCreateStats = (uid: string) => {
+    let s = gameStatsMap.get(uid);
+    if (!s) {
+      s = {
+        userId: uid,
+        gamesPlayed: 0,
+        wins: 0,
+        losses: 0,
+        draws: 0,
+        xp: 0,
+        rating: 1200,
+        favoriteGame: gameId,
+        winStreak: 0,
+        achievements: []
+      };
+      gameStatsMap.set(uid, s);
+    }
+    return s;
+  };
+
+  const p1 = getOrCreateStats(player1Uid);
+  const p2 = getOrCreateStats(player2Uid);
+
+  p1.gamesPlayed += 1;
+  p2.gamesPlayed += 1;
+
+  let xp1 = 15;
+  let xp2 = 15;
+
+  if (isDraw) {
+    p1.draws += 1;
+    p2.draws += 1;
+    p1.winStreak = 0;
+    p2.winStreak = 0;
+    xp1 += 15;
+    xp2 += 15;
+  } else if (winnerUid === player1Uid) {
+    p1.wins += 1;
+    p2.losses += 1;
+    p1.winStreak += 1;
+    p2.winStreak = 0;
+    p1.rating += 25;
+    p2.rating = Math.max(1000, p2.rating - 15);
+    xp1 += 50; // +65 total for win
+  } else if (winnerUid === player2Uid) {
+    p2.wins += 1;
+    p1.losses += 1;
+    p2.winStreak += 1;
+    p1.winStreak = 0;
+    p2.rating += 25;
+    p1.rating = Math.max(1000, p1.rating - 15);
+    xp2 += 50;
+  }
+
+  p1.xp += xp1;
+  p2.xp += xp2;
+
+  // Check achievements
+  if (p1.wins >= 1 && !p1.achievements.includes('first_win')) p1.achievements.push('first_win');
+  if (p1.wins >= 10 && !p1.achievements.includes('warrior_10')) p1.achievements.push('warrior_10');
+  if (p1.winStreak >= 3 && !p1.achievements.includes('streak_3')) p1.achievements.push('streak_3');
+
+  if (p2.wins >= 1 && !p2.achievements.includes('first_win')) p2.achievements.push('first_win');
+  if (p2.wins >= 10 && !p2.achievements.includes('warrior_10')) p2.achievements.push('warrior_10');
+  if (p2.winStreak >= 3 && !p2.achievements.includes('streak_3')) p2.achievements.push('streak_3');
+
+  return {
+    success: true,
+    xpEarnedP1: xp1,
+    xpEarnedP2: xp2
+  };
+}
+
+export function getUserGameStats(userId: string): GameUserStats {
+  let s = gameStatsMap.get(userId);
+  if (!s) {
+    s = {
+      userId,
+      gamesPlayed: 0,
+      wins: 0,
+      losses: 0,
+      draws: 0,
+      xp: 0,
+      rating: 1200,
+      favoriteGame: 'ludo',
+      winStreak: 0,
+      achievements: []
+    };
+    gameStatsMap.set(userId, s);
+  }
+  return s;
+}
+
+export function getAllGameStats(): GameUserStats[] {
+  return Array.from(gameStatsMap.values());
+}
+

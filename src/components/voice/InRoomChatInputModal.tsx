@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Send, Flame, Sparkles } from 'lucide-react';
 import { UserProfile } from '../../lib/firebase';
+import { VipBadge } from '../vip/VipBadge';
 
 interface InRoomChatInputModalProps {
   currentUser: UserProfile;
@@ -86,14 +87,21 @@ export const InRoomChatInputModal: React.FC<InRoomChatInputModalProps> = ({
 
         {/* Text Input Form */}
         <form onSubmit={handleSend} className="flex items-center gap-2 pt-1">
-          <input
-            type="text"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="रूममध्ये मेसेज पाठवा..."
-            className="flex-1 bg-slate-800/90 border border-slate-700 focus:border-pink-500 focus:outline-none rounded-2xl px-3.5 py-2 text-xs text-white placeholder-slate-400"
-            autoFocus
-          />
+          <div className="flex-1 flex items-center gap-2 bg-slate-800/90 border border-slate-700 focus-within:border-pink-500 rounded-2xl px-3 py-1">
+            {currentUser.vipLevel && currentUser.vipLevel > 0 ? (
+              <div className="shrink-0 flex items-center select-none" title={`VIP ${currentUser.vipLevel}`}>
+                <VipBadge level={currentUser.vipLevel} size="xs" />
+              </div>
+            ) : null}
+            <input
+              type="text"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="रूममध्ये मेसेज पाठवा..."
+              className="flex-1 bg-transparent border-none focus:outline-none py-1.5 text-xs text-white placeholder-slate-400"
+              autoFocus
+            />
+          </div>
           <button
             type="submit"
             disabled={!text.trim()}

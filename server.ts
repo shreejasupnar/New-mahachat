@@ -16,8 +16,14 @@ import {
   getTransactions,
   getMarketCategoryRates,
   setMarketRegimeMode,
-  setCategoryFluctuation
+  setCategoryFluctuation,
+  executeGameChallengeEntry,
+  executeGameChallengeRefund,
+  recordGameMatchCompletion,
+  getUserGameStats,
+  getAllGameStats
 } from "./server/walletBackend";
+import { liveRouter } from "./server/live/liveRouter";
 
 dotenv.config();
 
@@ -536,6 +542,121 @@ async function startServer() {
       res.status(500).json({ success: false, error: err.message });
     }
   });
+
+  // ==========================================
+  // MAHACHAT GAME ZONE BACKEND APIS
+  // ==========================================
+
+  // Enter 1v1 Challenge (Deducts 30 coins with idempotency)
+  app.post("/api/gamezone/enter-challenge", (req, res) => {
+    try {
+      const { userId, matchId, gameId, gameName, knownCoins } = req.body;
+      if (!userId || !matchId) {
+        return res.status(400).json({ success: false, error: "userId आणि matchId आवश्यक आहेत" });
+      }
+
+      const result = executeGameChallengeEntry(
+        userId,
+        matchId,
+        gameId || "game",
+        gameName || "Game",
+        knownCoins !== undefined ? Number(knownCoins) : undefined
+      );
+
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Refund 30 coins if matchmaking is cancelled or failed before match start
+  app.post("/api/gamezone/refund-challenge", (req, res) => {
+    try {
+      const { userId, matchId, gameId, reason } = req.body;
+      if (!userId || !matchId) {
+        return res.status(400).json({ success: false, error: "userId आणि matchId आवश्यक आहेत" });
+      }
+
+      const result = executeGameChallengeRefund(
+        userId,
+        matchId,
+        gameId || "game",
+        reason || "Matchmaking cancelled"
+      );
+
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Complete Game Match & Update Player XP / Rating / Records
+  app.post("/api/gamezone/complete-match", (req, res) => {
+    try {
+      const {
+        matchId,
+        gameId,
+        player1Uid,
+        player2Uid,
+        winnerUid,
+        isDraw,
+        score1,
+        score2,
+        durationSeconds
+      } = req.body;
+
+      if (!matchId || !player1Uid || !player2Uid) {
+        return res.status(400).json({ success: false, error: "अपूर्ण सामना माहिती" });
+      }
+
+      const result = recordGameMatchCompletion({
+        matchId,
+        gameId: gameId || "ludo",
+        player1Uid,
+        player2Uid,
+        winnerUid,
+        isDraw: Boolean(isDraw),
+        score1: Number(score1) || 0,
+        score2: Number(score2) || 0,
+        durationSeconds: Number(durationSeconds) || 60
+      });
+
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Get User Game Profile & Stats
+  app.get("/api/gamezone/stats", (req, res) => {
+    try {
+      const userId = String(req.query.userId || "");
+      if (!userId) {
+        return res.status(400).json({ success: false, error: "userId आवश्यक आहे" });
+      }
+      const stats = getUserGameStats(userId);
+      return res.json({ success: true, stats });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Get Game Zone Leaderboard (Ranked real authenticated users)
+  app.get("/api/gamezone/leaderboard", (req, res) => {
+    try {
+      const allStats = getAllGameStats();
+      const sorted = allStats.sort((a, b) => b.xp - a.xp || b.wins - a.wins);
+      return res.json({ success: true, leaderboard: sorted });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Live Streaming API Router
+  app.use('/api/live', liveRouter);
 
   // Vite middleware for development vs static build for production
   if (process.env.NODE_ENV !== "production") {

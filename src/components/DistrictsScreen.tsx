@@ -37,7 +37,8 @@ export const DistrictsScreen: React.FC<DistrictsScreenProps> = ({
             const lastActiveMs = data.lastActive?.toMillis 
               ? data.lastActive.toMillis() 
               : (data.lastActive?.seconds ? data.lastActive.seconds * 1000 : 0);
-            if (!lastActiveMs || (now - lastActiveMs) < 300000) {
+            // Only count if active within the last 70 seconds (real active presence)
+            if (!lastActiveMs || (now - lastActiveMs) < 70000) {
               counts[data.district] = (counts[data.district] || 0) + 1;
             }
           }
@@ -200,7 +201,7 @@ export const DistrictsScreen: React.FC<DistrictsScreenProps> = ({
                         onSelectVoiceRoom(district.id);
                       }}
                       className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer border border-blue-200/80 hover:border-blue-600 shadow-xs active:scale-95"
-                      title={`${district.nameMr} व्हॉईस कट्टा (८ सीट्स)`}
+                      title={`${district.nameMr} व्हॉईस कट्टा (१० सीट्स)`}
                     >
                       <Radio className="w-3.5 h-3.5 text-blue-600" />
                       <span className="hidden sm:inline">व्हॉईस</span>
